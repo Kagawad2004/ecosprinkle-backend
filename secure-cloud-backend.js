@@ -63,7 +63,7 @@ class MQTTManager {
     }
 
     init() {
-        const mqttBrokerEnv = process.env.MQTT_BROKER || 'mqtt://test.mosquitto.org:1883';
+        const mqttBrokerEnv = process.env.MQTT_BROKER || 'mqtt://broker.hivemq.com:1883';
         const BACKEND_CLIENT_ID = 'BACKEND_ECOSPRINKLER_' + Math.random().toString(36).substr(2, 9);
 
         // Smart URL parsing: handle both full URLs and hostname-only formats
