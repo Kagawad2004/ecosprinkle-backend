@@ -4,21 +4,21 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node index.js",
-    "dev": "nodemon index.js",
+    "start": "concurrently \"node secure-cloud-backend.js\" \"node index.js\"",
+    "start:main": "node index.js",
     "start:secure": "node secure-cloud-backend.js",
+    "dev": "nodemon index.js",
     "dev:secure": "nodemon secure-cloud-backend.js",
-    "start:both": "concurrently \"npm run start:secure\" \"npm run start\"",
     "dev:both": "concurrently \"npm run dev:secure\" \"npm run dev\""
   },
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "concurrently": "^9.2.1",
     "nodemon": "^3.1.10"
   },
   "dependencies": {
     "aedes": "^0.51.3",
+    "concurrently": "^9.2.1",
     "anymatch": "^3.1.3",
     "axios": "^1.12.2",
     "balanced-match": "^1.0.2",
