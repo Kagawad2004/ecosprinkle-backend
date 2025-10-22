@@ -1,0 +1,37 @@
+{
+  "apps": [
+    {
+      "name": "ecosprinkler-secure",
+      "script": "secure-cloud-backend.js",
+      "cwd": "./",
+      "env": {
+        "NODE_ENV": "production",
+        "SECURE_CLOUD_PORT": "3001"
+      },
+      "instances": 1,
+      "exec_mode": "fork",
+      "watch": false,
+      "merge_logs": true,
+      "log_file": "./logs/secure-backend.log",
+      "out_file": "./logs/secure-backend-out.log",
+      "error_file": "./logs/secure-backend-error.log"
+    },
+    {
+      "name": "ecosprinkler-local",
+      "script": "index.js",
+      "cwd": "./",
+      "env": {
+        "NODE_ENV": "production",
+        "PORT": "3000",
+        "MQTT_PORT": "1883"
+      },
+      "instances": 1,
+      "exec_mode": "fork",
+      "watch": false,
+      "merge_logs": true,
+      "log_file": "./logs/local-backend.log",
+      "out_file": "./logs/local-backend-out.log",
+      "error_file": "./logs/local-backend-error.log"
+    }
+  ]
+}

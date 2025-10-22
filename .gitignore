@@ -1,0 +1,188 @@
+# ============================================
+# EcoSprinkler Backend - .gitignore for Render Deployment
+# ============================================
+# Repository: https://github.com/Kagawad2004/EcoSprinkle.git
+# Deploy Platform: Render
+# ============================================
+
+# ============================================
+# SENSITIVE DATA - NEVER COMMIT!
+# ============================================
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+.env.production
+.env.development
+
+# SSL/TLS certificates
+*.pem
+*.key
+*.crt
+*.cert
+*.p12
+*.pfx
+
+# Database dumps
+*.sql
+*.dump
+*.bak
+backup/
+dumps/
+
+# ============================================
+# NODE.JS / NPM
+# ============================================
+
+# Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Optional: Uncomment if you want to exclude lock files
+# package-lock.json
+# yarn.lock
+
+# ============================================
+# BUILD & RUNTIME
+# ============================================
+
+# Build outputs
+dist/
+build/
+out/
+
+# Logs
+logs/
+*.log
+
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# PM2
+.pm2/
+
+# ============================================
+# TEST FILES - EXCLUDED FROM DEPLOYMENT
+# ============================================
+
+# All test files
+test-*.js
+*-test.js
+*.test.js
+test/
+tests/
+__tests__/
+
+# Specific test files in this project
+check-esp32-device.js
+dry-wet-threshold.js
+register-esp32-manually.js
+secure-cloud-backend.js
+verify-db.js
+
+# Test scripts
+*.bat
+*.ps1
+
+# ============================================
+# EDITOR / IDE
+# ============================================
+
+# VSCode
+.vscode/
+*.code-workspace
+
+# JetBrains
+.idea/
+*.iml
+
+# Sublime
+*.sublime-project
+*.sublime-workspace
+
+# ============================================
+# OPERATING SYSTEM
+# ============================================
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+*~
+.directory
+
+# ============================================
+# TEMPORARY FILES
+# ============================================
+
+*.tmp
+*.temp
+*.cache
+.cache/
+tmp/
+temp/
+
+# ============================================
+# DOCUMENTATION (Optional)
+# ============================================
+
+# Uncomment if you don't want to deploy documentation
+# *.md
+# But keep README.md for Render
+# !README.md
+
+# Specific documentation files
+BACKEND_FLOW_DIAGNOSIS.md
+BACKEND_VERIFICATION_SUMMARY.md
+DATA_STORAGE_VERIFICATION.md
+ESP32_BACKEND_SYNC.md
+USER_ID_ALIGNMENT.md
+
+# ============================================
+# USER UPLOADS
+# ============================================
+
+uploads/
+qrcodes/
+test-output/
+
+# ============================================
+# MISCELLANEOUS
+# ============================================
+
+*.diagnostic.txt
+*.pid
+*.sock
+
+# ============================================
+# IMPORTANT: Files to KEEP for Render
+# ============================================
+# The following should be committed:
+# - package.json (required)
+# - package-lock.json (recommended)
+# - .env.example (template)
+# - index.js (entry point)
+# - config/ (configuration)
+# - models/ (database models)
+# - controllers/ (API logic)
+# - routes/ (API routes)
+# - services/ (business logic)
+# - middleware/ (authentication, validation)
+# - Dockerfile (optional)
+# - ecosystem.config.json (PM2 config)
+# - README.md (documentation)
+# - DATABASE_SCHEMA_GUIDE.md (optional)
