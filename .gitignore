@@ -84,7 +84,6 @@ __tests__/
 check-esp32-device.js
 dry-wet-threshold.js
 register-esp32-manually.js
-secure-cloud-backend.js
 verify-db.js
 
 # Test scripts
