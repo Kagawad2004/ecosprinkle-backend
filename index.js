@@ -540,6 +540,24 @@ io.on('connection', (socket) => {
   });
 });
 
+// Root route - Welcome message
+app.get('/', (req, res) => {
+  res.json({
+    message: '🌱 EcoSprinkler Backend API - MUBAYAD SA BA? OR ISAHON NALANG SAMAL? HAHAHAHAHA',
+    status: 'running',
+    version: '1.0.0',
+    endpoints: {
+      health: '/health',
+      status: '/status',
+      auth: '/api/auth/*',
+      devices: '/api/devices/*',
+      irrigation: '/api/irrigation/*',
+      sensors: '/api/sensor/*'
+    },
+    documentation: 'https://github.com/Kagawad2004/ecosprinkle-backend'
+  });
+});
+
 // Auth routes (public)
 const authRoutes = require('./routes/auth');
 app.use('/api/auth', authRoutes);
