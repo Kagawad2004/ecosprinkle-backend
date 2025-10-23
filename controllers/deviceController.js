@@ -14,11 +14,47 @@ exports.registerDevice = async (req, res) => {
 
     // Check if device is already registered
     const existingDevice = await Device.findOne({ deviceId: deviceData.deviceId });
+    
     if (existingDevice) {
-      return res.status(400).json({ message: 'Device already registered' });
+      // Check if device is orphaned (not linked to any active user)
+      const deviceOwner = await User.findById(existingDevice.userID);
+      const isOrphaned = !deviceOwner || !deviceOwner.devices.includes(existingDevice._id);
+      
+      if (isOrphaned) {
+        console.log(`📝 Re-registering orphaned device ${deviceData.deviceId} to new user ${userId}`);
+        
+        // Re-assign device to new user
+        existingDevice.userID = userId;
+        existingDevice.DeviceName = deviceData.deviceName;
+        existingDevice.WifiSSID = deviceData.wifiSSID;
+        existingDevice.isActive = true;
+        existingDevice.Status = 'Registered';
+        existingDevice.LastUpdated = new Date();
+        
+        // Clear old state that might cause issues
+        existingDevice.manualPumpState = undefined;
+        existingDevice.wateringMode = 'auto'; // Reset to default mode
+        
+        await existingDevice.save();
+        
+        // Add device to new user's device list
+        await User.findByIdAndUpdate(userId, {
+          $addToSet: { devices: existingDevice._id } // Use $addToSet to prevent duplicates
+        });
+        
+        return res.status(200).json({
+          message: 'Device re-registered successfully',
+          device: existingDevice
+        });
+      } else {
+        // Device is still actively owned by another user
+        return res.status(400).json({ 
+          message: 'Device already registered to another user. Please remove it from the previous account first.' 
+        });
+      }
     }
 
-    // Create device document
+    // Create new device document
     const device = new Device({
       userID: userId,
       QRcode: deviceData.deviceId,
@@ -96,6 +132,52 @@ exports.updateDeviceStatus = async (req, res) => {
 
     res.json(device);
   } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Delete/remove device from user's account (orphan it for re-registration)
+exports.deleteDevice = async (req, res) => {
+  try {
+    const { deviceId } = req.params;
+    const userId = req.user?.id; // Get from auth middleware if available
+
+    console.log(`🗑️ Deleting device ${deviceId} from user ${userId}`);
+
+    // Find the device
+    const device = await Device.findOne({ deviceId });
+    if (!device) {
+      return res.status(404).json({ message: 'Device not found' });
+    }
+
+    // Remove device from user's device list
+    if (userId) {
+      await User.findByIdAndUpdate(userId, {
+        $pull: { devices: device._id }
+      });
+      console.log(`✅ Removed device from user ${userId}'s device list`);
+    } else if (device.userID) {
+      // Fallback: remove from device's registered user
+      await User.findByIdAndUpdate(device.userID, {
+        $pull: { devices: device._id }
+      });
+      console.log(`✅ Removed device from user ${device.userID}'s device list`);
+    }
+
+    // Mark device as orphaned (don't delete, allow re-registration)
+    device.isActive = false;
+    device.Status = 'Orphaned';
+    device.LastUpdated = new Date();
+    await device.save();
+
+    console.log(`✅ Device ${deviceId} marked as orphaned (ready for re-registration)`);
+
+    res.json({ 
+      message: 'Device removed successfully. Device can be re-registered by another user.',
+      deviceId 
+    });
+  } catch (error) {
+    console.error('Delete device error:', error);
     res.status(500).json({ message: error.message });
   }
 };
