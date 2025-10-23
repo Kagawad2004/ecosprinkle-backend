@@ -585,6 +585,7 @@ app.get('/api/devices/check/:deviceId', deviceController.isDeviceRegistered);
 app.get('/api/devices/:deviceId', deviceController.getDeviceById);
 app.put('/api/devices/:deviceId/status', deviceController.updateDeviceStatus);
 app.delete('/api/devices/:deviceId', deviceController.deleteDevice);
+app.delete('/api/devices/all/delete-everything', deviceController.deleteAllDevices); // DEVELOPER ONLY - Delete ALL devices
 app.put('/api/devices/:deviceId/plant', deviceController.associateDeviceWithPlant);
 app.get('/api/users/:userId/devices', deviceController.getUserDevices);
 

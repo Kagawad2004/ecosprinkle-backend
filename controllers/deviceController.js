@@ -16,12 +16,25 @@ exports.registerDevice = async (req, res) => {
     const existingDevice = await Device.findOne({ deviceId: deviceData.deviceId });
     
     if (existingDevice) {
-      // Check if device is orphaned (not linked to any active user)
-      const deviceOwner = await User.findById(existingDevice.userID);
-      const isOrphaned = !deviceOwner || !deviceOwner.devices.includes(existingDevice._id);
+      // Check if device is orphaned or inactive
+      const isOrphaned = existingDevice.Status === 'Orphaned' || !existingDevice.isActive;
       
-      if (isOrphaned) {
-        console.log(`📝 Re-registering orphaned device ${deviceData.deviceId} to new user ${userId}`);
+      // Also check if device is in user's device list
+      const deviceOwner = await User.findById(existingDevice.userID);
+      const isInUserDeviceList = deviceOwner && deviceOwner.devices.includes(existingDevice._id);
+      
+      if (isOrphaned || !isInUserDeviceList) {
+        console.log(`📝 Re-registering device ${deviceData.deviceId} to new user ${userId}`);
+        console.log(`   Previous status: ${existingDevice.Status}, isActive: ${existingDevice.isActive}`);
+        console.log(`   Previous owner had device in list: ${isInUserDeviceList}`);
+        
+        // Remove device from old user's list (if any)
+        if (existingDevice.userID && existingDevice.userID.toString() !== userId) {
+          await User.findByIdAndUpdate(existingDevice.userID, {
+            $pull: { devices: existingDevice._id }
+          });
+          console.log(`   Removed device from old user ${existingDevice.userID}`);
+        }
         
         // Re-assign device to new user
         existingDevice.userID = userId;
@@ -42,14 +55,19 @@ exports.registerDevice = async (req, res) => {
           $addToSet: { devices: existingDevice._id } // Use $addToSet to prevent duplicates
         });
         
+        console.log(`✅ Device re-registered successfully to user ${userId}`);
+        
         return res.status(200).json({
           message: 'Device re-registered successfully',
           device: existingDevice
         });
       } else {
         // Device is still actively owned by another user
-        return res.status(400).json({ 
-          message: 'Device already registered to another user. Please remove it from the previous account first.' 
+        console.log(`❌ Device ${deviceData.deviceId} is still actively registered to user ${existingDevice.userID}`);
+        return res.status(409).json({ 
+          error: 'Device already registered',
+          details: 'This device is already registered in the system. Please remove it from the previous account first, or contact support if this is your device.',
+          deviceId: deviceData.deviceId
         });
       }
     }
@@ -142,43 +160,107 @@ exports.deleteDevice = async (req, res) => {
     const { deviceId } = req.params;
     const userId = req.user?.id; // Get from auth middleware if available
 
-    console.log(`🗑️ Deleting device ${deviceId} from user ${userId}`);
+    console.log(`🗑️ Delete request for device ${deviceId} from user ${userId}`);
 
     // Find the device
     const device = await Device.findOne({ deviceId });
     if (!device) {
+      console.log(`❌ Device ${deviceId} not found`);
       return res.status(404).json({ message: 'Device not found' });
     }
 
+    console.log(`   Current device status: ${device.Status}, isActive: ${device.isActive}`);
+    console.log(`   Current device owner: ${device.userID}`);
+
     // Remove device from user's device list
     if (userId) {
-      await User.findByIdAndUpdate(userId, {
+      const updateResult = await User.findByIdAndUpdate(userId, {
         $pull: { devices: device._id }
       });
       console.log(`✅ Removed device from user ${userId}'s device list`);
     } else if (device.userID) {
       // Fallback: remove from device's registered user
-      await User.findByIdAndUpdate(device.userID, {
+      const updateResult = await User.findByIdAndUpdate(device.userID, {
         $pull: { devices: device._id }
       });
-      console.log(`✅ Removed device from user ${device.userID}'s device list`);
+      console.log(`✅ Removed device from user ${device.userID}'s device list (fallback)`);
     }
 
     // Mark device as orphaned (don't delete, allow re-registration)
     device.isActive = false;
     device.Status = 'Orphaned';
     device.LastUpdated = new Date();
+    // Optionally clear userID to fully orphan the device
+    // device.userID = null; // Uncomment if you want to completely disassociate
     await device.save();
 
-    console.log(`✅ Device ${deviceId} marked as orphaned (ready for re-registration)`);
+    console.log(`✅ Device ${deviceId} marked as orphaned and ready for re-registration`);
+    console.log(`   New status: ${device.Status}, isActive: ${device.isActive}`);
 
     res.json({ 
-      message: 'Device removed successfully. Device can be re-registered by another user.',
+      success: true,
+      message: 'Device removed successfully. Device WiFi credentials have been cleared and it can be re-registered by scanning the QR code again.',
       deviceId 
     });
   } catch (error) {
-    console.error('Delete device error:', error);
-    res.status(500).json({ message: error.message });
+    console.error('❌ Delete device error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Failed to remove device',
+      error: error.message 
+    });
+  }
+};
+
+// Delete ALL devices from the database (DEVELOPER ONLY - USE WITH CAUTION!)
+exports.deleteAllDevices = async (req, res) => {
+  try {
+    console.log(`🗑️🗑️🗑️ DELETE ALL DEVICES REQUEST - This will remove ALL devices from database!`);
+    
+    // Count devices before deletion
+    const deviceCount = await Device.countDocuments();
+    console.log(`   Found ${deviceCount} devices to delete`);
+    
+    if (deviceCount === 0) {
+      return res.json({ 
+        success: true,
+        message: 'No devices found in database',
+        deletedCount: 0
+      });
+    }
+
+    // Remove all device references from all users
+    await User.updateMany(
+      { devices: { $exists: true, $ne: [] } },
+      { $set: { devices: [] } }
+    );
+    console.log(`✅ Cleared device references from all users`);
+
+    // Delete all devices from database
+    const deleteResult = await Device.deleteMany({});
+    console.log(`✅ Deleted ${deleteResult.deletedCount} devices from database`);
+
+    // Also clean up related data (optional - remove if you want to keep history)
+    const sensorDataCount = await SensorData.deleteMany({});
+    console.log(`✅ Deleted ${sensorDataCount.deletedCount} sensor data records`);
+    
+    const commandCount = await DeviceCommand.deleteMany({});
+    console.log(`✅ Deleted ${commandCount.deletedCount} device commands`);
+
+    res.json({ 
+      success: true,
+      message: `All devices deleted successfully`,
+      deletedCount: deleteResult.deletedCount,
+      sensorDataDeleted: sensorDataCount.deletedCount,
+      commandsDeleted: commandCount.deletedCount
+    });
+  } catch (error) {
+    console.error('❌ Delete all devices error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Failed to delete all devices',
+      error: error.message 
+    });
   }
 };
 
