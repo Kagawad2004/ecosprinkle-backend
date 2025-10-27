@@ -545,6 +545,10 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 const sensorRoutes = require('./routes/sensors');
 app.use('/api', sensorRoutes);
 
+// Import and use device routes (includes DELETE with MQTT notification)
+const deviceRoutes = require('./routes/devices');
+app.use('/api/devices', deviceRoutes);
+
 // Import and use watering control routes
 const wateringRoutes = require('./routes/watering');
 app.use('/api/devices', wateringRoutes);

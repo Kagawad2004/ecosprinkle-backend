@@ -490,6 +490,44 @@ router.delete('/:deviceId', authMiddleware, validateDeviceId, async (req, res) =
     const deletedSensorData = await SensorData.deleteMany({ deviceId });
     console.log(`🧹 Deleted ${deletedSensorData.deletedCount} sensor data records for device ${deviceId}`);
 
+    // 🔥 CRITICAL: Send DEVICE_DELETED command to ESP32 via MQTT (cloud broker)
+    try {
+      // Get MQTT client from app (set in secure-cloud-backend.js)
+      const mqttClient = req.app.get('cloudMqttClient') || req.app.get('mqttClient');
+      
+      if (mqttClient && mqttClient.connected) {
+        const deletionMessage = {
+          command: 'DEVICE_DELETED',
+          deviceId: deviceId,
+          message: 'Device removed from account. WiFi will be cleared automatically.',
+          timestamp: new Date().toISOString()
+        };
+        
+        // Send to device-specific command topic (matching ESP32 subscription)
+        const commandTopic = `ecosprinkler/${deviceId}/commands/control`;
+        console.log(`📡 Sending DEVICE_DELETED to ${commandTopic} via cloud MQTT...`);
+        
+        mqttClient.publish(
+          commandTopic,
+          JSON.stringify(deletionMessage),
+          { qos: 1, retain: false },
+          (err) => {
+            if (err) {
+              console.error(`❌ Failed to send DEVICE_DELETED:`, err);
+            } else {
+              console.log(`✅ DEVICE_DELETED sent to ${deviceId}`);
+              console.log(`   ESP32 will clear WiFi credentials and restart in AP mode`);
+            }
+          }
+        );
+      } else {
+        console.warn(`⚠️  MQTT client not connected - ESP32 won't receive deletion signal`);
+        console.warn(`   Manual factory reset required: Hold button for 5 seconds`);
+      }
+    } catch (mqttError) {
+      console.error(`❌ Error sending MQTT deletion command:`, mqttError);
+    }
+
     res.json({
       success: true,
       message: 'Device removed successfully',

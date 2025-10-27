@@ -197,6 +197,42 @@ exports.deleteDevice = async (req, res) => {
     console.log(`✅ Device ${deviceId} marked as orphaned and ready for re-registration`);
     console.log(`   New status: ${device.Status}, isActive: ${device.isActive}`);
 
+    // 🔥 CRITICAL: Send DEVICE_DELETED command to ESP32 via MQTT
+    try {
+      const mqttClient = req.app.get('mqttClient');
+      if (mqttClient && mqttClient.connected) {
+        const deletionMessage = {
+          command: 'DEVICE_DELETED',
+          deviceId: deviceId,
+          message: 'Device was removed from user account. Performing factory reset.',
+          timestamp: new Date().toISOString()
+        };
+        
+        // Send to device-specific command topic
+        const commandTopic = `ecosprinkler/${deviceId}/commands/control`;
+        console.log(`📡 Sending DEVICE_DELETED to ${commandTopic}...`);
+        
+        mqttClient.publish(
+          commandTopic,
+          JSON.stringify(deletionMessage),
+          { qos: 1, retain: false },
+          (err) => {
+            if (err) {
+              console.error(`❌ Failed to send DEVICE_DELETED via MQTT:`, err);
+            } else {
+              console.log(`✅ DEVICE_DELETED command sent to ${deviceId}`);
+              console.log(`   ESP32 will clear WiFi and restart in AP mode`);
+            }
+          }
+        );
+      } else {
+        console.warn(`⚠️  MQTT client not available - ESP32 won't receive deletion notification`);
+        console.warn(`   Device will need manual factory reset (hold button for 5s)`);
+      }
+    } catch (mqttError) {
+      console.error(`❌ Error sending MQTT deletion command:`, mqttError);
+    }
+
     res.json({ 
       success: true,
       message: 'Device removed successfully. Device WiFi credentials have been cleared and it can be re-registered by scanning the QR code again.',
