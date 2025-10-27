@@ -34,12 +34,58 @@ router.post('/register', async (req, res) => {
       });
     }
 
-    // Check if device already exists
+    // Check if device already exists and is owned by someone
     const existingDevice = await Device.findOne({ deviceId: normalizedDeviceId });
     if (existingDevice) {
+      console.log(`⚠️ Device ${normalizedDeviceId} already exists!`);
+      console.log(`   Owned by: ${existingDevice.userID}`);
+      console.log(`   Attempting registration by: ${finalUserId}`);
+      
+      // If device exists and is owned by SAME user - allow re-registration (update)
+      if (existingDevice.userID === finalUserId) {
+        console.log(`✅ Same user re-registering device - updating existing record`);
+        
+        // Update existing device instead of creating new one
+        existingDevice.MACaddress = macAddress;
+        existingDevice.DeviceName = deviceName || existingDevice.DeviceName;
+        existingDevice.WifiSSID = wifiSsid || existingDevice.WifiSSID;
+        existingDevice.Status = 'Online';
+        existingDevice.isActive = true;
+        existingDevice.lastSensorUpdate = new Date();
+        existingDevice.LastUpdated = new Date();
+        
+        if (plantType) existingDevice.plantType = plantType;
+        if (soilType) existingDevice.soilType = soilType;
+        if (sunlight) existingDevice.sunlightExposure = sunlight;
+        if (minThreshold) existingDevice.thresholds.dryThreshold = minThreshold;
+        if (maxThreshold) existingDevice.thresholds.wetThreshold = maxThreshold;
+        
+        await existingDevice.save();
+        
+        return res.status(200).json({
+          success: true,
+          message: 'Device re-registered successfully',
+          device: {
+            id: existingDevice._id,
+            deviceId: existingDevice.deviceId,
+            deviceName: existingDevice.DeviceName,
+            deviceType: existingDevice.deviceType,
+            status: existingDevice.Status,
+            isActive: existingDevice.isActive,
+            thresholds: existingDevice.thresholds,
+            wateringMode: existingDevice.wateringMode,
+            plantType: existingDevice.plantType,
+            soilType: existingDevice.soilType,
+            sunlightExposure: existingDevice.sunlightExposure,
+            createdAt: existingDevice.createdAt
+          }
+        });
+      }
+      
+      // Device owned by different user - reject
       return res.status(409).json({
         error: 'Device already registered',
-        details: 'This device is already registered in the system'
+        details: 'This device is already registered to another user. Please remove it from the previous account first.'
       });
     }
 
@@ -415,26 +461,43 @@ router.delete('/:deviceId', authMiddleware, validateDeviceId, async (req, res) =
     const { deviceId } = req.params;
     const userId = req.user.userId;
 
+    console.log(`🗑️ Delete request for device: ${deviceId} by user: ${userId}`);
+
     const device = await Device.findOneAndDelete({
       deviceId,
       userID: userId
     });
 
     if (!device) {
+      console.log(`❌ Device ${deviceId} not found or not owned by user ${userId}`);
       return res.status(404).json({
         error: 'Device not found',
         details: 'The requested device does not exist or you do not have access to it'
       });
     }
 
+    console.log(`✅ Device ${deviceId} deleted from database`);
+
     // Remove device from user's device list
     await User.findByIdAndUpdate(userId, {
       $pull: { devices: device._id }
     });
+    
+    console.log(`✅ Device ${deviceId} removed from user's device list`);
+
+    // Also delete all associated sensor data (optional - cleanup)
+    const SensorData = require('../models/SensorData');
+    const deletedSensorData = await SensorData.deleteMany({ deviceId });
+    console.log(`🧹 Deleted ${deletedSensorData.deletedCount} sensor data records for device ${deviceId}`);
 
     res.json({
       success: true,
-      message: 'Device removed successfully'
+      message: 'Device removed successfully',
+      deviceId,
+      cleanedUp: {
+        device: true,
+        sensorData: deletedSensorData.deletedCount
+      }
     });
   } catch (error) {
     console.error('Delete device error:', error);
