@@ -221,15 +221,33 @@ aedes.on('publish', async function (packet, client) {
         const Device = require('./models/Device');
         let device = await Device.findOne({ deviceId: data.deviceId });
         if (!device) {
-          console.log(`🔧 Auto-registering new device: ${data.deviceId}`);
-          device = await Device.create({
+          // Device not found - could be deleted or never registered
+          console.log(`⚠️ Device ${data.deviceId} not found in database`);
+          console.log(`📡 Sending DEVICE_DELETED signal to ESP32...`);
+          
+          // Send deletion notification to ESP32 via MQTT
+          const deletionMessage = {
+            command: 'DEVICE_DELETED',
             deviceId: data.deviceId,
-            name: `ESP32 Device ${data.deviceId.substring(5, 12)}`,
-            location: 'Auto-registered',
-            registered: true,
-            lastSeen: new Date()
-          });
-          console.log(`✅ Device ${data.deviceId} registered successfully`);
+            message: 'Device was removed. Please reset to factory settings.',
+            timestamp: new Date().toISOString()
+          };
+          
+          mqttClient.publish(
+            `ecosprinkler/${data.deviceId}/commands/control`,
+            JSON.stringify(deletionMessage),
+            { qos: 1, retain: false },
+            (err) => {
+              if (err) {
+                console.error('❌ Failed to send deletion notification:', err);
+              } else {
+                console.log(`✅ Sent DEVICE_DELETED to ${data.deviceId}`);
+              }
+            }
+          );
+          
+          // DO NOT auto-register - require manual re-registration via app
+          console.log(`🔒 Device ${data.deviceId} must be manually re-registered`);
         } else {
           // Update last seen timestamp
           await Device.updateOne(
