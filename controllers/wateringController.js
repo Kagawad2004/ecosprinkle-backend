@@ -504,8 +504,7 @@ exports.upsertSchedule = async (req, res) => {
     const client = initMQTTClient();
     const mqttTopic = `Ecosprinkle/${deviceId}/commands/control`;
     
-    // 🚨 CRITICAL FIX: Send ONE ADD_SCHEDULE command per day
-    const commandPromises = [];
+    // 🚨 CRITICAL FIX: Send ONE ADD_SCHEDULE command per day with delay between each
     let totalCommands = 0;
     
     for (const schedule of device.schedules) {
@@ -550,7 +549,8 @@ exports.upsertSchedule = async (req, res) => {
         
         console.log(`📤 Publishing ADD_SCHEDULE for day ${dayOfWeek}: ${mqttPayload}`);
         
-        const publishPromise = new Promise((resolve) => {
+        // Wait for MQTT publish to complete before sending next one
+        await new Promise((resolve) => {
           client.publish(mqttTopic, mqttPayload, { qos: 1 }, (err) => {
             if (err) {
               console.error(`❌ Failed to publish schedule for day ${dayOfWeek}:`, err);
@@ -561,13 +561,17 @@ exports.upsertSchedule = async (req, res) => {
           });
         });
         
-        commandPromises.push(publishPromise);
         totalCommands++;
+        
+        // 🚨 CRITICAL: Add delay between each schedule command to prevent ESP32 overload
+        // ESP32 needs time to process, save to Preferences, and reload schedules
+        if (totalCommands < device.schedules.reduce((sum, s) => sum + s.daysOfWeek.length, 0)) {
+          console.log('⏳ Waiting 150ms before next schedule command...');
+          await new Promise(resolve => setTimeout(resolve, 150));
+        }
       }
     }
     
-    // Wait for all MQTT publishes to complete
-    await Promise.all(commandPromises);
     console.log(`✅ Published ${totalCommands} schedule commands to ESP32`);
     
     // 🚨 CRITICAL: Add delay to ensure ESP32 processes all ADD_SCHEDULE commands
