@@ -486,11 +486,12 @@ exports.upsertSchedule = async (req, res) => {
     }
 
     // Replace all schedules
+    // 🚨 CRITICAL: Convert frontend days (1-7, Mon-Sun) to database format (0-6, Sun-Sat)
     device.schedules = schedules.map(s => ({
       timeSlotId: s.timeSlotId || `slot_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       time: s.time,
       duration: s.duration,
-      daysOfWeek: s.daysOfWeek,
+      daysOfWeek: s.daysOfWeek.map(day => day === 7 ? 0 : day), // Convert: 7 (Sun) -> 0, keep 1-6 as is
       isActive: s.isActive !== undefined ? s.isActive : true,
       createdAt: s.createdAt || new Date()
     }));
@@ -512,7 +513,9 @@ exports.upsertSchedule = async (req, res) => {
       
       // For EACH day in daysOfWeek, send separate ADD_SCHEDULE command
       for (const dayOfWeek of schedule.daysOfWeek) {
-        const scheduleId = `${schedule.timeSlotId}_day${dayOfWeek}`;
+        // 🚨 Convert database format (0-6) back to ESP32 format (1-7)
+        const esp32DayOfWeek = dayOfWeek === 0 ? 7 : dayOfWeek;
+        const scheduleId = `${schedule.timeSlotId}_day${esp32DayOfWeek}`;
         
         // Create device command record
         const command = new DeviceCommand({
@@ -520,7 +523,7 @@ exports.upsertSchedule = async (req, res) => {
           command: 'ADD_SCHEDULE',
           parameters: { 
             scheduleId: scheduleId,
-            dayOfWeek: dayOfWeek,  // Single day (1-7, or 0-6 for ESP32)
+            dayOfWeek: esp32DayOfWeek,  // ESP32 expects 1-7 (Mon-Sun)
             hour: hour,
             minute: minute,
             duration: schedule.duration,
@@ -537,7 +540,7 @@ exports.upsertSchedule = async (req, res) => {
           command: 'ADD_SCHEDULE',
           parameters: {
             scheduleId: scheduleId,
-            dayOfWeek: dayOfWeek,
+            dayOfWeek: esp32DayOfWeek,  // ESP32 expects 1-7 (Mon-Sun)
             hour: hour,
             minute: minute,
             duration: schedule.duration,
@@ -547,15 +550,15 @@ exports.upsertSchedule = async (req, res) => {
           timestamp: Date.now()
         });
         
-        console.log(`📤 Publishing ADD_SCHEDULE for day ${dayOfWeek}: ${mqttPayload}`);
+        console.log(`📤 Publishing ADD_SCHEDULE for day ${esp32DayOfWeek}: ${mqttPayload}`);
         
         // Wait for MQTT publish to complete before sending next one
         await new Promise((resolve) => {
           client.publish(mqttTopic, mqttPayload, { qos: 1 }, (err) => {
             if (err) {
-              console.error(`❌ Failed to publish schedule for day ${dayOfWeek}:`, err);
+              console.error(`❌ Failed to publish schedule for day ${esp32DayOfWeek}:`, err);
             } else {
-              console.log(`✅ Published schedule for day ${dayOfWeek}`);
+              console.log(`✅ Published schedule for day ${esp32DayOfWeek}`);
             }
             resolve();
           });
