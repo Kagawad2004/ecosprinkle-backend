@@ -2,7 +2,7 @@
 
 ## Overview
 
-The EcoSprinkler backend uses **3 different schemas** for storing device and sensor information. Each serves a specific purpose to optimize performance and data organization.
+The Ecosprinkle backend uses **3 different schemas** for storing device and sensor information. Each serves a specific purpose to optimize performance and data organization.
 
 ---
 

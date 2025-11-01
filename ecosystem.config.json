@@ -1,7 +1,7 @@
 {
   "apps": [
     {
-      "name": "ecosprinkler-secure",
+      "name": "Ecosprinkle-secure",
       "script": "secure-cloud-backend.js",
       "cwd": "./",
       "env": {
@@ -17,7 +17,7 @@
       "error_file": "./logs/secure-backend-error.log"
     },
     {
-      "name": "ecosprinkler-local",
+      "name": "Ecosprinkle-local",
       "script": "index.js",
       "cwd": "./",
       "env": {

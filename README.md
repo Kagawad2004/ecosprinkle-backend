@@ -1,6 +1,6 @@
-# EcoSprinkler Backend API
+# Ecosprinkle Backend API
 
-A comprehensive Node.js backend API for the EcoSprinkler IoT system, providing MongoDB integration to replace Firebase Firestore collections.
+A comprehensive Node.js backend API for the Ecosprinkle IoT system, providing MongoDB integration to replace Firebase Firestore collections.
 
 ## Features
 
@@ -31,7 +31,7 @@ A comprehensive Node.js backend API for the EcoSprinkler IoT system, providing M
 2. **Environment Setup:**
    Create a `.env` file with:
    ```
-   MONGODB_URI=mongodb://localhost:27017/ecosprinkler
+   MONGODB_URI=mongodb://localhost:27017/Ecosprinkle
    PORT=3000
    NODE_ENV=development
    JWT_SECRET=your_secure_jwt_secret_key

@@ -1,5 +1,5 @@
 /**
- * EcoSprinkler Sensor Algorithm Service
+ * Ecosprinkle Sensor Algorithm Service
  * 
  * This service replicates the EXACT sensor processing algorithm from ESP32 firmware (main.cpp)
  * to ensure 100% synchronization between device and backend processing.

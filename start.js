@@ -2,7 +2,7 @@
 const { spawn } = require('child_process');
 const path = require('path');
 
-console.log('🚀 Starting EcoSprinkler Backend Services...');
+console.log('🚀 Starting Ecosprinkle Backend Services...');
 console.log('📍 Working Directory:', __dirname);
 
 // Start secure-cloud-backend.js

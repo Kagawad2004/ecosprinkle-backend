@@ -190,8 +190,8 @@ aedes.on('publish', async function (packet, client) {
   console.log('MQTT Message:', topic, payload);
   
   try {
-    // Handle ESP32 direct publish: ecosprinkler/{deviceId}/sensors/data
-    if (topic.match(/^ecosprinkler\/[^\/]+\/sensors\/data$/)) {
+    // Handle ESP32 direct publish: Ecosprinkle/{deviceId}/sensors/data
+    if (topic.match(/^Ecosprinkle\/[^\/]+\/sensors\/data$/)) {
       const topicParts = topic.split('/');
       const deviceId = topicParts[1]; // Extract deviceId from topic
       const data = JSON.parse(payload);
@@ -234,7 +234,7 @@ aedes.on('publish', async function (packet, client) {
           };
           
           mqttClient.publish(
-            `ecosprinkler/${data.deviceId}/commands/control`,
+            `Ecosprinkle/${data.deviceId}/commands/control`,
             JSON.stringify(deletionMessage),
             { qos: 1, retain: false },
             (err) => {
@@ -264,8 +264,8 @@ aedes.on('publish', async function (packet, client) {
       // Emit to WebSocket clients
       io.to(data.deviceId).emit('sensorData', data);
     }
-    // Legacy format: ecosprinkler/sensors/data (keep for compatibility)
-    else if (topic === 'ecosprinkler/sensors/data') {
+    // Legacy format: Ecosprinkle/sensors/data (keep for compatibility)
+    else if (topic === 'Ecosprinkle/sensors/data') {
       const data = JSON.parse(payload);
       
       // Update connection status - data received
@@ -313,7 +313,7 @@ aedes.on('publish', async function (packet, client) {
 
     // NEW: MQTT-API Bridge for Irrigation Status and Logging
     // Handle irrigation status updates from devices
-    if (topic.startsWith('ecosprinkler/irrigation/')) {
+    if (topic.startsWith('Ecosprinkle/irrigation/')) {
       const topicParts = topic.split('/');
       const deviceId = topicParts[2];
       const eventType = topicParts[3]; // status, command, error
@@ -327,7 +327,7 @@ aedes.on('publish', async function (packet, client) {
     }
 
     // Handle sensor data logging
-    if (topic.startsWith('ecosprinkler/sensors/')) {
+    if (topic.startsWith('Ecosprinkle/sensors/')) {
       const topicParts = topic.split('/');
       const deviceId = topicParts[2];
       const dataType = topicParts[3]; // data, alert, error
@@ -345,7 +345,7 @@ aedes.on('publish', async function (packet, client) {
     }
 
     // Handle device command acknowledgments
-    if (topic.startsWith('ecosprinkler/commands/')) {
+    if (topic.startsWith('Ecosprinkle/commands/')) {
       const topicParts = topic.split('/');
       const deviceId = topicParts[2];
       const commandId = topicParts[3];
@@ -524,7 +524,7 @@ app.use(express.json());
 app.use(passport.initialize());
 
 // MongoDB Connection (Optional for MQTT testing)
-const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/ecosprinkler';
+const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/Ecosprinkle';
 console.log('Attempting to connect to MongoDB:', mongoUri);
 
 mongoose.connect(mongoUri, {
@@ -561,7 +561,7 @@ io.on('connection', (socket) => {
 // Root route - Welcome message
 app.get('/', (req, res) => {
   res.json({
-    message: '🌱 EcoSprinkler Backend API - MUBAYAD SA BA? OR ISAHON NALANG SAMAL? HAHAHAHAHA',
+    message: '🌱 Ecosprinkle Backend API - MUBAYAD SA BA? OR ISAHON NALANG SAMAL? HAHAHAHAHA',
     status: 'running',
     version: '1.0.0',
     endpoints: {
@@ -662,7 +662,7 @@ app.get('/api/health', (req, res) => {
   res.status(200).json({
     status: 'ok',
     timestamp: Date.now(),
-    service: 'EcoSprinkler Backend',
+    service: 'Ecosprinkle Backend',
     version: '1.0.0'
   });
 });
@@ -675,7 +675,7 @@ app.get('/api/connection-status', async (req, res) => {
     success: true,
     timestamp: Date.now(),
     architecture: {
-      description: "EcoSprinkler uses Secure Cloud Backend for ESP32 communication",
+      description: "Ecosprinkle uses Secure Cloud Backend for ESP32 communication",
       esp32Handler: "secure-cloud-backend.js",
       localMqttBroker: "index.js (legacy/backup)"
     },
@@ -721,7 +721,7 @@ app.use((err, req, res, next) => {
 const port = process.env.PORT || 3000;
 server.listen(port, '0.0.0.0', () => {
   console.log('========================================');
-  console.log('🚀 EcoSprinkler Local MQTT Broker & Connection Monitor (index.js)');
+  console.log('🚀 Ecosprinkle Local MQTT Broker & Connection Monitor (index.js)');
   console.log(`📍 Server running at http://0.0.0.0:${port} (accessible from all interfaces)`);
   console.log('========================================');
   console.log('🏗️  SYSTEM ARCHITECTURE:');

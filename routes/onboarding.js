@@ -272,7 +272,7 @@ router.get('/suggestions', authMiddleware, async (req, res) => {
       suggestions.push({
         id: 'add_first_device',
         title: 'Add Your First Device',
-        description: 'Connect your EcoSprinkler device to start monitoring your plants',
+        description: 'Connect your Ecosprinkle device to start monitoring your plants',
         priority: 'high',
         action: {
           type: 'navigate',
@@ -319,7 +319,7 @@ router.get('/suggestions', authMiddleware, async (req, res) => {
       suggestions.push({
         id: 'explore_features',
         title: 'Explore Features',
-        description: 'Take a tour of the app features and learn how to get the most out of your EcoSprinkler',
+        description: 'Take a tour of the app features and learn how to get the most out of your Ecosprinkle',
         priority: 'low',
         action: {
           type: 'navigate',

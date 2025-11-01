@@ -51,7 +51,7 @@ Your backend is now configured for Render deployment with:
 ```bash
 cd d:\codes\ecospinklers\backend
 
-git commit -m "Initial commit: EcoSprinkler backend for Render deployment"
+git commit -m "Initial commit: Ecosprinkle backend for Render deployment"
 ```
 
 ### Step 2: Push to GitHub
@@ -67,7 +67,7 @@ git push -u origin main
 3. **Connect Your Repository:** `https://github.com/Kagawad2004/EcoSprinkle.git`
 4. **Configure Service:**
 
-   - **Name:** `ecosprinkler-backend`
+   - **Name:** `Ecosprinkle-backend`
    - **Root Directory:** Leave empty (since backend is the repo root)
    - **Environment:** `Node`
    - **Build Command:** `npm install`
@@ -153,7 +153,7 @@ Render will automatically redeploy when you push to GitHub!
 
 ## 🌐 After Deployment
 
-1. **Get your backend URL** from Render (e.g., `https://ecosprinkler-backend.onrender.com`)
+1. **Get your backend URL** from Render (e.g., `https://Ecosprinkle-backend.onrender.com`)
 2. **Update frontend** `.env` file with the backend URL
 3. **Test API endpoints:**
    ```bash

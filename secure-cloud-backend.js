@@ -64,7 +64,7 @@ class MQTTManager {
 
     init() {
         const mqttBrokerEnv = process.env.MQTT_BROKER || 'mqtt://broker.hivemq.com:1883';
-        const BACKEND_CLIENT_ID = 'BACKEND_ECOSPRINKLER_' + Math.random().toString(36).substr(2, 9);
+        const BACKEND_CLIENT_ID = 'BACKEND_Ecosprinkle_' + Math.random().toString(36).substr(2, 9);
 
         // Smart URL parsing: handle both full URLs and hostname-only formats
         let brokerUrl;
@@ -89,7 +89,7 @@ class MQTTManager {
             keepalive: 60,
             protocolVersion: 4,
             will: {
-                topic: 'ecosprinkler/backend/status',
+                topic: 'Ecosprinkle/backend/status',
                 payload: 'offline',
                 qos: 1,
                 retain: true
@@ -106,36 +106,36 @@ class MQTTManager {
             this.reconnectAttempts = 0;
             
             // Subscribe to ESP32 sensor data with WILDCARD pattern to match ANY device ID
-            // ESP32 publishes to: ecosprinkler/esp32-3c8a1f7f442c/sensors/data
+            // ESP32 publishes to: Ecosprinkle/esp32-3c8a1f7f442c/sensors/data
             // Wildcard (+) matches any device ID
-            this.client.subscribe('ecosprinkler/+/sensors/data', { qos: 1 }, (err) => {
+            this.client.subscribe('Ecosprinkle/+/sensors/data', { qos: 1 }, (err) => {
                 if (err) {
                     console.error('❌ Subscription error for sensors/data:', err);
                 } else {
-                    console.log('✅ Subscribed to: ecosprinkler/+/sensors/data (all devices)');
+                    console.log('✅ Subscribed to: Ecosprinkle/+/sensors/data (all devices)');
                 }
             });
             
             // Subscribe to device commands responses
-            this.client.subscribe('ecosprinkler/+/commands/pump', { qos: 1 }, (err) => {
+            this.client.subscribe('Ecosprinkle/+/commands/pump', { qos: 1 }, (err) => {
                 if (err) {
                     console.error('❌ Subscription error for pump commands:', err);
                 } else {
-                    console.log('✅ Subscribed to: ecosprinkler/+/commands/pump (all devices)');
+                    console.log('✅ Subscribed to: Ecosprinkle/+/commands/pump (all devices)');
                 }
             });
             
             // Subscribe to device status updates
-            this.client.subscribe('ecosprinkler/+/status', { qos: 1 }, (err) => {
+            this.client.subscribe('Ecosprinkle/+/status', { qos: 1 }, (err) => {
                 if (err) {
                     console.error('❌ Subscription error for device status:', err);
                 } else {
-                    console.log('✅ Subscribed to: ecosprinkler/+/status (all devices)');
+                    console.log('✅ Subscribed to: Ecosprinkle/+/status (all devices)');
                 }
             });
             
             // Publish backend online status
-            this.client.publish('ecosprinkler/backend/status', 'online', { qos: 1, retain: true });
+            this.client.publish('Ecosprinkle/backend/status', 'online', { qos: 1, retain: true });
             
             // Process any queued messages
             this.processQueuedMessages();
@@ -174,11 +174,11 @@ class MQTTManager {
     async handleMessage(topic, payload) {
         console.log('📨 Cloud MQTT Message:', topic, payload.toString());
         
-        // Extract device ID from topic: ecosprinkler/esp32-3c8a1f7f442c/sensors/data
+        // Extract device ID from topic: Ecosprinkle/esp32-3c8a1f7f442c/sensors/data
         const topicParts = topic.split('/');
         const deviceId = topicParts[1]; // Get device ID from topic
         
-        // Handle sensor data messages (ecosprinkler/+/sensors/data)
+        // Handle sensor data messages (Ecosprinkle/+/sensors/data)
         if (topic.includes('/sensors/data')) {
             const rawData = JSON.parse(payload.toString());
             
@@ -226,7 +226,7 @@ class MQTTManager {
             }
             
         } 
-        // Handle device status messages (ecosprinkler/+/status)
+        // Handle device status messages (Ecosprinkle/+/status)
         else if (topic.includes('/status')) {
             console.log('🚀 ESP32 device online:', deviceId);
             
@@ -253,7 +253,7 @@ class MQTTManager {
     }
 
     sendCommand(deviceId, command, payload) {
-        const topic = `ecosprinkler/commands/${command}`;
+        const topic = `Ecosprinkle/commands/${command}`;
         const message = JSON.stringify({
             deviceId,
             command,
@@ -555,7 +555,7 @@ app.use('/api/devices', wateringRoutes);
 
 // Enhanced MongoDB Connection with retry logic
 async function connectToMongoDB() {
-    const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/ecosprinkler';
+    const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/Ecosprinkle';
     console.log('🗄️ Connecting to MongoDB:', mongoUri);
 
     const maxRetries = 5;
@@ -823,7 +823,7 @@ async function gracefulShutdown(signal) {
 // Start server
 const port = process.env.SECURE_CLOUD_PORT || 3001;
 server.listen(port, '0.0.0.0', () => {
-    console.log(`🚀 Enhanced Secure EcoSprinkler Backend Server running at http://0.0.0.0:${port} (accessible from all interfaces)`);
+    console.log(`🚀 Enhanced Secure Ecosprinkle Backend Server running at http://0.0.0.0:${port} (accessible from all interfaces)`);
     console.log('🔒 Using cloud MQTT broker for secure device communication');
     console.log('🛡️ Enhanced with rate limiting, error handling, and circuit breakers');
     console.log('📊 Health check available at http://localhost:' + port + '/health');

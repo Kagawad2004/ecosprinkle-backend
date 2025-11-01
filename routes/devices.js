@@ -93,17 +93,17 @@ router.post('/register', async (req, res) => {
     const securityKey = require('crypto').randomBytes(32).toString('hex');
     const qrData = JSON.stringify({
       deviceId: normalizedDeviceId,
-      type: 'ecosprinkler',
+      type: 'Ecosprinkle',
       mac: macAddress,
       version: '2.0.0'
     });
 
     // Generate MQTT topics for this device
     const mqttTopics = {
-      sensorData: `ecosprinkler/${normalizedDeviceId}/sensors/data`,
-      commands: `ecosprinkler/${normalizedDeviceId}/commands`,
-      status: `ecosprinkler/${normalizedDeviceId}/status`,
-      responses: `ecosprinkler/${normalizedDeviceId}/responses`
+      sensorData: `Ecosprinkle/${normalizedDeviceId}/sensors/data`,
+      commands: `Ecosprinkle/${normalizedDeviceId}/commands`,
+      status: `Ecosprinkle/${normalizedDeviceId}/status`,
+      responses: `Ecosprinkle/${normalizedDeviceId}/responses`
     };
 
     // Create new device
@@ -111,7 +111,7 @@ router.post('/register', async (req, res) => {
       userID: finalUserId,
       deviceId: normalizedDeviceId,
       MACaddress: macAddress,
-      DeviceName: deviceName || `EcoSprinkler-${normalizedDeviceId.substring(0, 8)}`,
+      DeviceName: deviceName || `Ecosprinkle-${normalizedDeviceId.substring(0, 8)}`,
       deviceType: 'combined', // Assuming combined sensor/pump device
       QRcode: qrData,
       securityKey,
@@ -504,7 +504,7 @@ router.delete('/:deviceId', authMiddleware, validateDeviceId, async (req, res) =
         };
         
         // Send to device-specific command topic (matching ESP32 subscription)
-        const commandTopic = `ecosprinkler/${deviceId}/commands/control`;
+        const commandTopic = `Ecosprinkle/${deviceId}/commands/control`;
         console.log(`📡 Sending DEVICE_DELETED to ${commandTopic} via cloud MQTT...`);
         
         mqttClient.publish(

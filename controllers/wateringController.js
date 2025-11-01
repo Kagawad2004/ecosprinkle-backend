@@ -50,7 +50,7 @@ function initMQTTClient() {
 // Publish MQTT Command to ESP32 and track in DeviceCommand
 async function publishPumpCommand(deviceId, action, duration = 0, source = 'manual') {
   const client = initMQTTClient();
-  const topic = `ecosprinkler/${deviceId}/commands/pump`;
+  const topic = `Ecosprinkle/${deviceId}/commands/pump`;
   
   // Create a device command record
   const command = new DeviceCommand({
@@ -173,7 +173,7 @@ exports.switchMode = async (req, res) => {
     await command.save();
     
     // Publish command via MQTT
-    const mqttTopic = `ecosprinkler/${deviceId}/commands/control`;
+    const mqttTopic = `Ecosprinkle/${deviceId}/commands/control`;
     const mqttPayload = JSON.stringify({
       command: 'SET_WATERING_MODE',
       parameters: { mode },
@@ -502,7 +502,7 @@ exports.upsertSchedule = async (req, res) => {
     device.LastUpdated = new Date();
 
     const client = initMQTTClient();
-    const mqttTopic = `ecosprinkler/${deviceId}/commands/control`;
+    const mqttTopic = `Ecosprinkle/${deviceId}/commands/control`;
     
     // 🚨 CRITICAL FIX: Send ONE ADD_SCHEDULE command per day
     const commandPromises = [];
@@ -676,7 +676,7 @@ exports.updateScheduleStatus = async (req, res) => {
     await command.save();
     
     // Publish command via MQTT
-    const mqttTopic = `ecosprinkler/${deviceId}/commands/control`;
+    const mqttTopic = `Ecosprinkle/${deviceId}/commands/control`;
     const mqttPayload = JSON.stringify({
       command: 'UPDATE_SCHEDULE_STATUS',
       parameters: command.parameters,
@@ -872,7 +872,7 @@ exports.deleteSchedule = async (req, res) => {
     await command.save();
     
     // Publish command via MQTT
-    const mqttTopic = `ecosprinkler/${deviceId}/commands/control`;
+    const mqttTopic = `Ecosprinkle/${deviceId}/commands/control`;
     const mqttPayload = JSON.stringify({
       command: 'DELETE_SCHEDULE',
       parameters: { scheduleId: timeSlotId },
@@ -964,7 +964,7 @@ exports.cancelAllSchedules = async (req, res) => {
     await command.save();
     
     // Publish command via MQTT to ESP32
-    const mqttTopic = `ecosprinkler/${deviceId}/commands/control`;
+    const mqttTopic = `Ecosprinkle/${deviceId}/commands/control`;
     const mqttPayload = JSON.stringify({
       command: 'CANCEL_ALL_SCHEDULES',
       parameters: {},
@@ -1051,7 +1051,7 @@ exports.pauseResumeSchedule = async (req, res) => {
     await command.save();
     
     // Publish command via MQTT
-    const mqttTopic = `ecosprinkler/${deviceId}/commands/control`;
+    const mqttTopic = `Ecosprinkle/${deviceId}/commands/control`;
     const mqttPayload = JSON.stringify({
       command: paused ? 'PAUSE_SCHEDULE' : 'RESUME_SCHEDULE',
       parameters: { isPaused: paused },

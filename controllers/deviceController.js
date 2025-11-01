@@ -209,7 +209,7 @@ exports.deleteDevice = async (req, res) => {
         };
         
         // Send to device-specific command topic
-        const commandTopic = `ecosprinkler/${deviceId}/commands/control`;
+        const commandTopic = `Ecosprinkle/${deviceId}/commands/control`;
         console.log(`📡 Sending DEVICE_DELETED to ${commandTopic}...`);
         
         mqttClient.publish(
@@ -445,7 +445,7 @@ exports.sendDeviceCommand = async (req, res) => {
     const mqttClient = req.app.get('mqttClient');
     if (mqttClient && mqttClient.connected) {
       // Enhanced topic structure for better organization
-      const topic = `ecosprinkler/${deviceId}/commands/control`;
+      const topic = `Ecosprinkle/${deviceId}/commands/control`;
       const message = JSON.stringify({
         commandId: commandDoc._id,
         command: commandDoc.command,
@@ -676,7 +676,7 @@ exports.setWateringMode = async (req, res) => {
     // Publish command via MQTT
     const mqttClient = req.app.get('mqttClient');
     if (mqttClient && mqttClient.connected) {
-      const topic = `ecosprinkler/${deviceId}/commands/control`;
+      const topic = `Ecosprinkle/${deviceId}/commands/control`;
       const message = JSON.stringify({
         command: 'SET_WATERING_MODE',
         parameters: { mode },
@@ -790,7 +790,7 @@ exports.setWateringSchedules = async (req, res) => {
     // Publish command via MQTT
     const mqttClient = req.app.get('mqttClient');
     if (mqttClient && mqttClient.connected) {
-      const topic = `ecosprinkler/${deviceId}/commands/control`;
+      const topic = `Ecosprinkle/${deviceId}/commands/control`;
       const message = JSON.stringify({
         command: 'UPDATE_SCHEDULE',
         parameters: { schedules },
@@ -1213,7 +1213,7 @@ exports.manualControl = async (req, res) => {
     const mqttClient = req.app.get('mqttClient');
     
     if (mqttClient && mqttClient.connected) {
-      const topic = `ecosprinkler/${deviceId}/commands/control`;
+      const topic = `Ecosprinkle/${deviceId}/commands/control`;
       
       // Enhanced JSON command structure
       const payload = JSON.stringify({
