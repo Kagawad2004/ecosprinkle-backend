@@ -5,6 +5,97 @@ const DeviceCommand = require('../models/DeviceCommand');
 const Notification = require('../models/Notification');
 const User = require('../models/User');
 
+// ============ FINAL DEFENSE REVISION: SENSOR CALIBRATION HELPERS ============
+
+/**
+ * Validate sensor calibration data for individual zones
+ * @param {Object} calibrationData - Calibration data for a specific zone
+ * @returns {Object} Validation result with success flag and error message
+ */
+function validateZoneCalibration(calibrationData) {
+  const { wetAdc, dryAdc, dryThresholdPercent, wetThresholdPercent } = calibrationData;
+  
+  // Validate ADC ranges
+  if (typeof wetAdc !== 'number' || wetAdc < 0 || wetAdc > 4095) {
+    return { isValid: false, error: 'wetAdc must be between 0-4095' };
+  }
+  
+  if (typeof dryAdc !== 'number' || dryAdc < 0 || dryAdc > 4095) {
+    return { isValid: false, error: 'dryAdc must be between 0-4095' };
+  }
+  
+  if (wetAdc >= dryAdc) {
+    return { isValid: false, error: 'wetAdc must be less than dryAdc (inverted sensors)' };
+  }
+  
+  // Validate percentage thresholds
+  if (typeof dryThresholdPercent !== 'number' || dryThresholdPercent < 0 || dryThresholdPercent > 100) {
+    return { isValid: false, error: 'dryThresholdPercent must be between 0-100' };
+  }
+  
+  if (typeof wetThresholdPercent !== 'number' || wetThresholdPercent < 0 || wetThresholdPercent > 100) {
+    return { isValid: false, error: 'wetThresholdPercent must be between 0-100' };
+  }
+  
+  if (dryThresholdPercent >= wetThresholdPercent) {
+    return { isValid: false, error: 'dryThresholdPercent must be less than wetThresholdPercent' };
+  }
+  
+  return { isValid: true };
+}
+
+/**
+ * Calculate moisture percentage using individual sensor calibration
+ * @param {number} adcValue - Raw ADC reading (0-4095)
+ * @param {Object} calibration - Zone calibration object
+ * @returns {number} Moisture percentage (0-100)
+ */
+function calculateCalibratedPercentage(adcValue, calibration) {
+  const { wetAdc, dryAdc } = calibration;
+  
+  // Clamp ADC value to calibrated range
+  const clampedAdc = Math.max(wetAdc, Math.min(dryAdc, adcValue));
+  
+  // Calculate percentage (USER-FRIENDLY: 100% = wet, 0% = dry)
+  const adcRange = dryAdc - wetAdc;
+  const percentage = 100 - (((clampedAdc - wetAdc) * 100) / adcRange);
+  
+  return Math.max(0, Math.min(100, Math.round(percentage)));
+}
+
+/**
+ * Get default calibration data for new devices
+ * @returns {Object} Default sensor calibration configuration
+ */
+function getDefaultSensorCalibrations() {
+  return {
+    zone1: {
+      wetAdc: 1050,
+      dryAdc: 4095,
+      soilType: 'Fine soil',
+      cropType: 'Lettuce/Herbs',
+      dryThresholdPercent: 25,
+      wetThresholdPercent: 85
+    },
+    zone2: {
+      wetAdc: 1070,
+      dryAdc: 4095,
+      soilType: 'Medium soil',
+      cropType: 'Tomatoes',
+      dryThresholdPercent: 20,
+      wetThresholdPercent: 80
+    },
+    zone3: {
+      wetAdc: 1150,
+      dryAdc: 4095,
+      soilType: 'Coarse soil',
+      cropType: 'Root vegetables',
+      dryThresholdPercent: 15,
+      wetThresholdPercent: 75
+    }
+  };
+}
+
 // ==================== DEVICE REGISTRATION ====================
 
 // Register a new device
@@ -72,7 +163,7 @@ exports.registerDevice = async (req, res) => {
       }
     }
 
-    // Create new device document
+    // Create new device document with default calibration
     const device = new Device({
       userID: userId,
       QRcode: deviceData.deviceId,
@@ -84,6 +175,8 @@ exports.registerDevice = async (req, res) => {
       DeviceName: deviceData.deviceName,
       isActive: true,
       Status: 'Registered',
+      // FINAL DEFENSE REVISION: Initialize with calibrated sensor configuration
+      sensorCalibrations: getDefaultSensorCalibrations(),
     });
 
     await device.save();
@@ -580,6 +673,299 @@ exports.markCommandFailed = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+// ==================== SENSOR CALIBRATION MANAGEMENT ====================
+
+// Get sensor calibration data for a device
+exports.getSensorCalibrations = async (req, res) => {
+  try {
+    const { deviceId } = req.params;
+    
+    const device = await Device.findOne({ deviceId });
+    if (!device) {
+      return res.status(404).json({ 
+        success: false,
+        message: 'Device not found' 
+      });
+    }
+
+    // Return calibration data with calculated ranges
+    const calibrations = {};
+    Object.keys(device.sensorCalibrations).forEach(zone => {
+      const cal = device.sensorCalibrations[zone];
+      calibrations[zone] = {
+        ...cal.toObject(),
+        adcRange: cal.dryAdc - cal.wetAdc,
+        percentageRange: cal.wetThresholdPercent - cal.dryThresholdPercent
+      };
+    });
+
+    res.json({
+      success: true,
+      deviceId,
+      calibrations,
+      lastUpdated: device.LastUpdated
+    });
+  } catch (error) {
+    console.error('Error getting sensor calibrations:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Failed to get sensor calibrations',
+      error: error.message 
+    });
+  }
+};
+
+// Update sensor calibration for a specific zone
+exports.updateZoneCalibration = async (req, res) => {
+  try {
+    const { deviceId, zoneId } = req.params;
+    const calibrationData = req.body;
+    
+    // Validate zone ID
+    if (!['zone1', 'zone2', 'zone3'].includes(zoneId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid zone ID. Must be zone1, zone2, or zone3'
+      });
+    }
+    
+    // Validate calibration data
+    const validation = validateZoneCalibration(calibrationData);
+    if (!validation.isValid) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid calibration data',
+        error: validation.error
+      });
+    }
+    
+    // Update device calibration
+    const updateField = `sensorCalibrations.${zoneId}`;
+    const device = await Device.findOneAndUpdate(
+      { deviceId },
+      {
+        $set: {
+          [updateField]: calibrationData,
+          LastUpdated: new Date()
+        }
+      },
+      { new: true }
+    );
+
+    if (!device) {
+      return res.status(404).json({
+        success: false,
+        message: 'Device not found'
+      });
+    }
+
+    // Send calibration update command to ESP32
+    const command = new DeviceCommand({
+      deviceId,
+      command: 'UPDATE_CALIBRATION',
+      parameters: {
+        zone: zoneId,
+        calibration: calibrationData
+      },
+      status: 'pending',
+      executed: false
+    });
+    
+    await command.save();
+    
+    // Publish via MQTT
+    const mqttClient = req.app.get('mqttClient');
+    if (mqttClient && mqttClient.connected) {
+      const topic = `Ecosprinkle/${deviceId}/commands/control`;
+      const message = JSON.stringify({
+        command: 'UPDATE_CALIBRATION',
+        parameters: {
+          zone: zoneId,
+          calibration: calibrationData
+        },
+        commandId: command._id,
+        timestamp: Date.now()
+      });
+
+      mqttClient.publish(topic, message, { qos: 1 });
+    }
+
+    res.json({
+      success: true,
+      message: `${zoneId} calibration updated successfully`,
+      calibration: device.sensorCalibrations[zoneId],
+      command: {
+        id: command._id,
+        status: command.status
+      }
+    });
+  } catch (error) {
+    console.error('Error updating zone calibration:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Failed to update zone calibration',
+      error: error.message 
+    });
+  }
+};
+
+// Reset all sensor calibrations to default values
+exports.resetSensorCalibrations = async (req, res) => {
+  try {
+    const { deviceId } = req.params;
+    
+    const device = await Device.findOneAndUpdate(
+      { deviceId },
+      {
+        $set: {
+          sensorCalibrations: getDefaultSensorCalibrations(),
+          LastUpdated: new Date()
+        }
+      },
+      { new: true }
+    );
+
+    if (!device) {
+      return res.status(404).json({
+        success: false,
+        message: 'Device not found'
+      });
+    }
+
+    // Send reset command to ESP32
+    const command = new DeviceCommand({
+      deviceId,
+      command: 'RESET_CALIBRATION',
+      parameters: {
+        calibrations: getDefaultSensorCalibrations()
+      },
+      status: 'pending',
+      executed: false
+    });
+    
+    await command.save();
+    
+    // Publish via MQTT
+    const mqttClient = req.app.get('mqttClient');
+    if (mqttClient && mqttClient.connected) {
+      const topic = `Ecosprinkle/${deviceId}/commands/control`;
+      const message = JSON.stringify({
+        command: 'RESET_CALIBRATION',
+        parameters: {
+          calibrations: getDefaultSensorCalibrations()
+        },
+        commandId: command._id,
+        timestamp: Date.now()
+      });
+
+      mqttClient.publish(topic, message, { qos: 1 });
+    }
+
+    res.json({
+      success: true,
+      message: 'All sensor calibrations reset to default values',
+      calibrations: device.sensorCalibrations,
+      command: {
+        id: command._id,
+        status: command.status
+      }
+    });
+  } catch (error) {
+    console.error('Error resetting sensor calibrations:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Failed to reset sensor calibrations',
+      error: error.message 
+    });
+  }
+};
+
+// Validate current sensor readings against calibration
+exports.validateSensorReadings = async (req, res) => {
+  try {
+    const { deviceId } = req.params;
+    
+    const device = await Device.findOne({ deviceId });
+    if (!device) {
+      return res.status(404).json({
+        success: false,
+        message: 'Device not found'
+      });
+    }
+
+    const sensorData = device.sensorData;
+    const calibrations = device.sensorCalibrations;
+    
+    const validationResults = {
+      zone1: validateSensorReading(sensorData.zone1, calibrations.zone1),
+      zone2: validateSensorReading(sensorData.zone2, calibrations.zone2),
+      zone3: validateSensorReading(sensorData.zone3, calibrations.zone3)
+    };
+    
+    // Calculate overall system health
+    const validSensors = Object.values(validationResults).filter(r => r.isValid).length;
+    const systemHealth = validSensors === 3 ? 'excellent' : 
+                        validSensors === 2 ? 'good' : 
+                        validSensors === 1 ? 'warning' : 'critical';
+    
+    res.json({
+      success: true,
+      deviceId,
+      validationResults,
+      systemHealth,
+      validSensors,
+      totalSensors: 3,
+      timestamp: new Date()
+    });
+  } catch (error) {
+    console.error('Error validating sensor readings:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Failed to validate sensor readings',
+      error: error.message 
+    });
+  }
+};
+
+// Helper function to validate individual sensor reading
+function validateSensorReading(adcValue, calibration) {
+  const sensorErrorLow = 100;
+  const sensorErrorHigh = 4000;
+  
+  if (adcValue <= sensorErrorLow) {
+    return {
+      isValid: false,
+      error: `Sensor reading too low (${adcValue} ADC)`,
+      recommendation: 'Check sensor wiring and connections',
+      percentage: 0
+    };
+  }
+  
+  if (adcValue >= sensorErrorHigh) {
+    return {
+      isValid: false,
+      error: `Sensor disconnected or faulty (${adcValue} ADC)`,
+      recommendation: 'Check if sensor is properly connected to soil',
+      percentage: 0
+    };
+  }
+  
+  const percentage = calculateCalibratedPercentage(adcValue, calibration);
+  
+  return {
+    isValid: true,
+    adcValue,
+    percentage,
+    calibration: {
+      wetAdc: calibration.wetAdc,
+      dryAdc: calibration.dryAdc,
+      adcRange: calibration.dryAdc - calibration.wetAdc
+    },
+    status: percentage >= calibration.wetThresholdPercent ? 'well_watered' :
+            percentage <= calibration.dryThresholdPercent ? 'needs_water' : 'adequate'
+  };
+}
 
 // ==================== WATERING CONTROLS ====================
 

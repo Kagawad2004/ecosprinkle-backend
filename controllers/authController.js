@@ -3,7 +3,14 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const crypto = require('crypto');
 
+// ============ FINAL DEFENSE REVISION: USERNAME-BASED VALIDATION ============
 // Input validation helpers
+const validateUsername = (username) => {
+  // 3-30 characters, letters, numbers, underscores only
+  const usernameRegex = /^[a-zA-Z0-9_]{3,30}$/;
+  return usernameRegex.test(username);
+};
+
 const validateEmail = (email) => {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   return emailRegex.test(email);
@@ -18,7 +25,7 @@ const validatePassword = (password) => {
 // Generate tokens
 const generateTokens = (user) => {
   const accessToken = jwt.sign(
-    { userId: user._id, email: user.email },
+    { userId: user._id, username: user.username, email: user.email },
     process.env.JWT_SECRET,
     { expiresIn: '24h' }
   );
@@ -35,20 +42,28 @@ const generateTokens = (user) => {
 // Register new user
 exports.register = async (req, res) => {
   try {
-    const { firstName, lastName, email, password, confirmPassword } = req.body;
+    const { username, firstName, lastName, email, password, confirmPassword } = req.body;
 
-    // Input validation
-    if (!email || !password || !firstName || !lastName) {
+    // Input validation - username is required, email is optional
+    if (!username || !password || !firstName || !lastName) {
       return res.status(400).json({ 
-        error: 'All fields are required',
-        details: 'First name, last name, email, and password must be provided'
+        error: 'Required fields missing',
+        details: 'Username, first name, last name, and password are required'
       });
     }
 
-    if (!validateEmail(email)) {
+    if (!validateUsername(username)) {
+      return res.status(400).json({ 
+        error: 'Invalid username format',
+        details: 'Username must be 3-30 characters using only letters, numbers, and underscores'
+      });
+    }
+
+    // Validate email only if provided
+    if (email && !validateEmail(email)) {
       return res.status(400).json({ 
         error: 'Invalid email format',
-        details: 'Please enter a valid email address'
+        details: 'Please enter a valid email address or leave it blank'
       });
     }
 
@@ -66,20 +81,32 @@ exports.register = async (req, res) => {
       });
     }
 
-    // Check if user already exists
-    const existingUser = await User.findOne({ email: email.toLowerCase() });
-    if (existingUser) {
+    // Check if username already exists
+    const existingUsername = await User.findOne({ username: username.toLowerCase() });
+    if (existingUsername) {
       return res.status(409).json({ 
-        error: 'Account already exists',
-        details: 'An account with this email address already exists'
+        error: 'Username already taken',
+        details: 'This username is already in use. Please choose another.'
       });
+    }
+
+    // Check if email already exists (only if email is provided)
+    if (email) {
+      const existingEmail = await User.findOne({ email: email.toLowerCase() });
+      if (existingEmail) {
+        return res.status(409).json({ 
+          error: 'Email already registered',
+          details: 'An account with this email address already exists'
+        });
+      }
     }
 
     // Create new user (password will be hashed by pre-save hook)
     const user = new User({
+      username: username.toLowerCase(),
       firstName: firstName.trim(),
       lastName: lastName.trim(),
-      email: email.toLowerCase(),
+      email: email ? email.toLowerCase() : undefined,
       password,
       profile: {
         lastLogin: new Date()
@@ -102,14 +129,26 @@ exports.register = async (req, res) => {
       refreshToken,
       user: {
         id: user._id,
+        username: user.username,
         email: user.email,
         firstName: user.firstName,
         lastName: user.lastName,
-        fullName: `${user.firstName} ${user.lastName}`
+        fullName: `${user.firstName} ${user.lastName}`,
+        displayName: user.displayName
       }
     });
   } catch (error) {
     console.error('Registration error:', error);
+    
+    // Handle duplicate key errors
+    if (error.code === 11000) {
+      const field = Object.keys(error.keyPattern)[0];
+      return res.status(409).json({ 
+        error: `${field} already exists`,
+        details: `This ${field} is already registered. Please use a different ${field}.`
+      });
+    }
+    
     res.status(500).json({ 
       error: 'Registration failed',
       details: 'Unable to create account. Please try again later.'
@@ -120,29 +159,29 @@ exports.register = async (req, res) => {
 // Login user
 exports.login = async (req, res) => {
   try {
-    const { email, password, rememberMe = false } = req.body;
+    const { username, password, rememberMe = false } = req.body;
 
     // Input validation
-    if (!email || !password) {
+    if (!username || !password) {
       return res.status(400).json({ 
         error: 'Missing credentials',
-        details: 'Email and password are required'
+        details: 'Username and password are required'
       });
     }
 
-    if (!validateEmail(email)) {
+    if (!validateUsername(username)) {
       return res.status(400).json({ 
-        error: 'Invalid email format',
-        details: 'Please enter a valid email address'
+        error: 'Invalid username format',
+        details: 'Please enter a valid username'
       });
     }
 
-    // Find user by email
-    const user = await User.findOne({ email: email.toLowerCase() });
+    // Find user by username
+    const user = await User.findOne({ username: username.toLowerCase() });
     if (!user) {
       return res.status(401).json({ 
         error: 'Invalid credentials',
-        details: 'Email or password is incorrect'
+        details: 'Username or password is incorrect'
       });
     }
 
@@ -163,7 +202,7 @@ exports.login = async (req, res) => {
       
       return res.status(401).json({ 
         error: 'Invalid credentials',
-        details: 'Email or password is incorrect'
+        details: 'Username or password is incorrect'
       });
     }
 
@@ -191,10 +230,12 @@ exports.login = async (req, res) => {
       expiresIn: rememberMe ? '30 days' : '24 hours',
       user: {
         id: user._id,
+        username: user.username,
         email: user.email,
         firstName: user.firstName,
         lastName: user.lastName,
         fullName: `${user.firstName} ${user.lastName}`,
+        displayName: user.displayName,
         lastLogin: user.profile.lastLogin
       }
     });
@@ -403,10 +444,12 @@ exports.getCurrentUser = async (req, res) => {
       success: true,
       user: {
         id: user._id,
+        username: user.username,
         email: user.email,
         firstName: user.firstName,
         lastName: user.lastName,
         fullName: `${user.firstName} ${user.lastName}`,
+        displayName: user.displayName,
         profile: user.profile,
         createdAt: user.createdAt
       }
@@ -442,10 +485,12 @@ exports.updateProfile = async (req, res) => {
       message: 'Profile updated successfully',
       user: {
         id: user._id,
+        username: user.username,
         email: user.email,
         firstName: user.firstName,
         lastName: user.lastName,
         fullName: `${user.firstName} ${user.lastName}`,
+        displayName: user.displayName,
         profile: user.profile
       }
     });

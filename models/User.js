@@ -2,10 +2,22 @@ const mongoose = require('mongoose');
 const bcrypt = require('bcrypt');
 
 const userSchema = new mongoose.Schema({
-  email: {
+  // ============ FINAL DEFENSE REVISION: USERNAME-BASED AUTHENTICATION ============
+  username: {
     type: String,
     required: true,
     unique: true,
+    trim: true,
+    lowercase: true,
+    minlength: 3,
+    maxlength: 30,
+    match: [/^[a-zA-Z0-9_]+$/, 'Username can only contain letters, numbers, and underscores']
+  },
+  email: {
+    type: String,
+    required: false, // Made optional for username-based auth
+    unique: true,
+    sparse: true, // Allow multiple null values for unique constraint
     trim: true,
     lowercase: true
   },
@@ -106,12 +118,19 @@ const userSchema = new mongoose.Schema({
 });
 
 // Indexes for performance
+userSchema.index({ username: 1 }, { unique: true });
+userSchema.index({ email: 1 }, { unique: true, sparse: true }); // Sparse allows multiple null values
 userSchema.index({ passwordResetToken: 1 });
 userSchema.index({ emailVerificationToken: 1 });
 
 // Virtual for full name
 userSchema.virtual('fullName').get(function() {
   return `${this.firstName} ${this.lastName}`;
+});
+
+// Virtual for display name (username or full name)
+userSchema.virtual('displayName').get(function() {
+  return this.username || `${this.firstName} ${this.lastName}`;
 });
 
 // Hash password before saving

@@ -158,6 +158,114 @@ const deviceSchema = new mongoose.Schema({
       default: 0
     }
   },
+  // ============ FINAL DEFENSE REVISION: INDIVIDUAL SENSOR CALIBRATION ============
+  // Zone-specific calibration data for enhanced accuracy
+  sensorCalibrations: {
+    zone1: {
+      wetAdc: {
+        type: Number,
+        default: 1050, // Lettuce/Herbs calibration
+        min: 0,
+        max: 4095
+      },
+      dryAdc: {
+        type: Number,
+        default: 4095,
+        min: 0,
+        max: 4095
+      },
+      soilType: {
+        type: String,
+        default: 'Fine soil'
+      },
+      cropType: {
+        type: String,
+        default: 'Lettuce/Herbs'
+      },
+      dryThresholdPercent: {
+        type: Number,
+        default: 25, // Water when below 25% (leafy greens need consistent moisture)
+        min: 0,
+        max: 100
+      },
+      wetThresholdPercent: {
+        type: Number,
+        default: 85, // Stop when above 85%
+        min: 0,
+        max: 100
+      }
+    },
+    zone2: {
+      wetAdc: {
+        type: Number,
+        default: 1070, // Tomatoes calibration
+        min: 0,
+        max: 4095
+      },
+      dryAdc: {
+        type: Number,
+        default: 4095,
+        min: 0,
+        max: 4095
+      },
+      soilType: {
+        type: String,
+        default: 'Medium soil'
+      },
+      cropType: {
+        type: String,
+        default: 'Tomatoes'
+      },
+      dryThresholdPercent: {
+        type: Number,
+        default: 20, // Water when below 20% (tomatoes are drought tolerant)
+        min: 0,
+        max: 100
+      },
+      wetThresholdPercent: {
+        type: Number,
+        default: 80, // Stop when above 80%
+        min: 0,
+        max: 100
+      }
+    },
+    zone3: {
+      wetAdc: {
+        type: Number,
+        default: 1150, // Root vegetables calibration
+        min: 0,
+        max: 4095
+      },
+      dryAdc: {
+        type: Number,
+        default: 4095,
+        min: 0,
+        max: 4095
+      },
+      soilType: {
+        type: String,
+        default: 'Coarse soil'
+      },
+      cropType: {
+        type: String,
+        default: 'Root vegetables'
+      },
+      dryThresholdPercent: {
+        type: Number,
+        default: 15, // Water when below 15% (roots can handle drier conditions)
+        min: 0,
+        max: 100
+      },
+      wetThresholdPercent: {
+        type: Number,
+        default: 75, // Stop when above 75%
+        min: 0,
+        max: 100
+      }
+    }
+  },
+
+  // Legacy thresholds for backward compatibility
   thresholds: {
     dryThreshold: {
       type: Number,

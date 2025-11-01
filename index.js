@@ -203,18 +203,19 @@ aedes.on('publish', async function (packet, client) {
       connectionStatus.secureCloudBackend.dataReceived = true;
       connectionStatus.secureCloudBackend.lastDataTimestamp = Date.now();
       
-      console.log('🌱 ESP32 MQTT: Sensor data received:', {
-        deviceId: data.deviceId,
-        topic: topic,
-        zone1: data.zone1,
-        zone2: data.zone2,
-        zone3: data.zone3,
-        zone1Percent: data.zone1Percent,
-        zone2Percent: data.zone2Percent,
-        zone3Percent: data.zone3Percent,
-        majorityVoteDry: data.majorityVoteDry,
-        timestamp: new Date().toISOString()
-      });
+      console.log('🌱 FINAL DEFENSE - CALIBRATED SENSOR DATA RECEIVED:');
+      console.log('   Device: ' + data.deviceId + ' | Topic: ' + topic);
+      console.log('   ============ INDIVIDUAL ZONE READINGS ============');
+      console.log('   Zone 1 (Lettuce): ' + (data.zone1 || 'N/A') + ' ADC → ' + (data.zone1Percent || 'N/A') + '%');
+      console.log('   Zone 2 (Tomatoes): ' + (data.zone2 || 'N/A') + ' ADC → ' + (data.zone2Percent || 'N/A') + '%');
+      console.log('   Zone 3 (Root veg): ' + (data.zone3 || 'N/A') + ' ADC → ' + (data.zone3Percent || 'N/A') + '%');
+      console.log('   ============ MAJORITY VOTING RESULTS ============');
+      console.log('   DRY votes: ' + (data.dryVotes || 0) + ' | WET votes: ' + (data.wetVotes || 0));
+      console.log('   Decision: ' + (data.majorityVoteDry ? '🚰 WATER NEEDED' : '💧 NO WATER NEEDED'));
+      console.log('   Valid sensors: ' + (data.validSensors || 0) + '/3 | Health: ' + (data.sensorHealth || 'unknown'));
+      console.log('   ============ SYSTEM STATUS ============');
+      console.log('   Pump: ' + (data.pumpState === 1 ? 'ON' : 'OFF') + ' | Mode: ' + (data.wateringMode || 'auto'));
+      console.log('   RSSI: ' + (data.rssi || 'N/A') + ' dBm | Time: ' + new Date().toISOString());
       
       // Auto-register device if not exists
       try {
@@ -359,54 +360,162 @@ aedes.on('publish', async function (packet, client) {
   }
 });
 
-// Function to store sensor data
+// ============ FINAL DEFENSE REVISION: ENHANCED SENSOR DATA PROCESSING ============
+// Function to store calibrated sensor data with individual zone processing
 async function storeSensorData(data) {
   try {
+    const Device = require('./models/Device');
     const SensorData = require('./models/SensorData');
     
-    // Calculate soil moisture percentage (assuming 0-4095 range from ESP32)
-    const moisturePercent = Math.round(((4095 - (data.soilMoisture || 0)) / 4095) * 100);
+    // Get device calibration settings
+    const device = await Device.findOne({ deviceId: data.deviceId });
     
-    // Determine soil status based on moisture percentage
-    let soilStatus = 'Unknown';
-    if (moisturePercent >= 80) soilStatus = 'Very Wet';
-    else if (moisturePercent >= 60) soilStatus = 'Wet';
-    else if (moisturePercent >= 40) soilStatus = 'Moist';
-    else if (moisturePercent >= 20) soilStatus = 'Dry';
-    else soilStatus = 'Very Dry';
+    // ENHANCED DATA PROCESSING: Handle individual zone data with calibration
+    if (data.zone1Percent !== undefined && data.zone2Percent !== undefined && data.zone3Percent !== undefined) {
+      console.log('🌱 Processing CALIBRATED sensor data from ESP32:');
+      console.log('   Zone 1: ' + data.zone1 + ' ADC → ' + data.zone1Percent + '%');
+      console.log('   Zone 2: ' + data.zone2 + ' ADC → ' + data.zone2Percent + '%');
+      console.log('   Zone 3: ' + data.zone3 + ' ADC → ' + data.zone3Percent + '%');
+      console.log('   Majority Decision: ' + (data.majorityVoteDry ? 'WATER NEEDED' : 'NO WATER NEEDED'));
+      console.log('   Valid Sensors: ' + data.validSensors + '/3, Health: ' + data.sensorHealth);
+      
+      // Calculate overall moisture level (average of valid sensors)
+      let overallMoisture = 0;
+      let validZones = 0;
+      
+      if (data.zone1Percent !== undefined) {
+        overallMoisture += data.zone1Percent;
+        validZones++;
+      }
+      if (data.zone2Percent !== undefined) {
+        overallMoisture += data.zone2Percent;
+        validZones++;
+      }
+      if (data.zone3Percent !== undefined) {
+        overallMoisture += data.zone3Percent;
+        validZones++;
+      }
+      
+      overallMoisture = validZones > 0 ? Math.round(overallMoisture / validZones) : 0;
+      
+      // Determine soil status based on calibrated percentage readings
+      let soilStatus = 'Unknown';
+      if (overallMoisture >= 80) soilStatus = 'Well Watered';
+      else if (overallMoisture >= 60) soilStatus = 'Adequately Moist';
+      else if (overallMoisture >= 40) soilStatus = 'Slightly Dry';
+      else if (overallMoisture >= 20) soilStatus = 'Dry - Needs Water';
+      else soilStatus = 'Very Dry - Urgent';
+      
+      // Store enhanced sensor data with individual zone information
+      const sensorData = new SensorData({
+        deviceId: data.deviceId,
+        timestamp: new Date(data.timestamp || Date.now()),
+        // Individual zone data (RAW ADC)
+        zone1: data.zone1 || 0,
+        zone2: data.zone2 || 0,
+        zone3: data.zone3 || 0,
+        // Individual zone percentages (CALIBRATED)
+        zone1Percent: data.zone1Percent || 0,
+        zone2Percent: data.zone2Percent || 0,
+        zone3Percent: data.zone3Percent || 0,
+        // Overall system data
+        moistureLevel: overallMoisture,
+        moisturePercent: overallMoisture,
+        soilStatus: soilStatus,
+        // Voting system results
+        dryVotes: data.dryVotes || 0,
+        wetVotes: data.wetVotes || 0,
+        majorityVoteDry: data.majorityVoteDry || false,
+        validSensors: data.validSensors || 0,
+        sensorHealth: data.sensorHealth || 'unknown',
+        // Device status
+        isWatering: data.pumpState === 1 || false,
+        pumpStatus: data.pumpState === 1 ? 'ON' : 'OFF',
+        wateringMode: data.wateringMode || 'auto',
+        deviceStatus: 'Online',
+        rssi: data.rssi || 0,
+        // Legacy compatibility
+        median: data.median || 0,
+        batteryLevel: data.batteryPercentage || 100,
+        temperature: data.temperature || null
+      });
+      
+      await sensorData.save();
+      
+      // Update device's real-time sensor data
+      if (device) {
+        await Device.findOneAndUpdate(
+          { deviceId: data.deviceId },
+          {
+            $set: {
+              'sensorData.zone1': data.zone1,
+              'sensorData.zone2': data.zone2,
+              'sensorData.zone3': data.zone3,
+              'sensorData.zone1Percent': data.zone1Percent,
+              'sensorData.zone2Percent': data.zone2Percent,
+              'sensorData.zone3Percent': data.zone3Percent,
+              'sensorData.dryVotes': data.dryVotes,
+              'sensorData.wetVotes': data.wetVotes,
+              'sensorData.majorityVoteDry': data.majorityVoteDry,
+              'sensorData.validSensors': data.validSensors,
+              'sensorData.sensorHealth': data.sensorHealth,
+              'sensorData.pumpState': data.pumpState,
+              'sensorData.rssi': data.rssi,
+              'sensorData.receivedAt': new Date(),
+              'lastSensorUpdate': new Date(),
+              'moistureLevel': overallMoisture,
+              'Status': 'Online'
+            }
+          }
+        );
+      }
+      
+      console.log('💾 Enhanced calibrated sensor data stored successfully!');
+      console.log('📊 Final processed data:', {
+        overallMoisture: overallMoisture + '%',
+        soilStatus: soilStatus,
+        majorityDecision: data.majorityVoteDry ? 'WATER' : 'NO_WATER',
+        sensorHealth: data.sensorHealth,
+        validSensors: data.validSensors
+      });
+      
+    } else {
+      // LEGACY PROCESSING: Handle old format for backward compatibility
+      console.log('� Processing LEGACY sensor data format...');
+      
+      const moisturePercent = Math.round(((4095 - (data.soilMoisture || 0)) / 4095) * 100);
+      
+      let soilStatus = 'Unknown';
+      if (moisturePercent >= 80) soilStatus = 'Very Wet';
+      else if (moisturePercent >= 60) soilStatus = 'Wet';
+      else if (moisturePercent >= 40) soilStatus = 'Moist';
+      else if (moisturePercent >= 20) soilStatus = 'Dry';
+      else soilStatus = 'Very Dry';
+      
+      const sensorData = new SensorData({
+        deviceId: data.deviceId,
+        timestamp: new Date(data.timestamp || Date.now()),
+        moistureLevel: data.soilMoisture || 0,
+        moisturePercent: moisturePercent,
+        soilStatus: soilStatus,
+        isWatering: data.pumpState || false,
+        wateringMode: 'auto',
+        deviceStatus: 'Online',
+        batteryLevel: data.batteryPercentage || 100,
+        temperature: data.temperature || null,
+        pumpStatus: data.pumpState ? 'ON' : 'OFF'
+      });
+      
+      await sensorData.save();
+      console.log('💾 Legacy sensor data stored for device:', data.deviceId);
+    }
     
-    // Map ESP32 data to SensorData schema (matching the model fields)
-    const sensorData = new SensorData({
-      deviceId: data.deviceId,
-      timestamp: new Date(data.timestamp),
-      moistureLevel: data.soilMoisture || 0,
-      moisturePercent: moisturePercent,
-      soilStatus: soilStatus,
-      isWatering: data.pumpState || false,
-      wateringMode: 'auto',
-      deviceStatus: 'Online',
-      batteryLevel: data.batteryPercentage || 100,
-      temperature: data.temperature || null,
-      pumpStatus: data.pumpState ? 'ON' : 'OFF'
-    });
-    
-    await sensorData.save();
-    console.log('💾 Sensor data stored in MongoDB for device:', data.deviceId);
-    console.log('📊 Schema-mapped data:', {
-      moistureLevel: data.soilMoisture,
-      moisturePercent: moisturePercent,
-      soilStatus: soilStatus,
-      temperature: data.temperature
-    });
   } catch (error) {
     console.error('❌ MongoDB storage error:', error.message);
-    console.log('📊 Raw ESP32 data received (not stored):', {
+    console.log('📊 Raw ESP32 data that failed to store:', {
       deviceId: data.deviceId,
-      temperature: data.temperature,
-      humidity: data.humidity,
-      soilMoisture: data.soilMoisture,
-      pumpState: data.pumpState,
-      valveState: data.valveState
+      hasZoneData: !!(data.zone1Percent && data.zone2Percent && data.zone3Percent),
+      dataKeys: Object.keys(data)
     });
   }
 }
