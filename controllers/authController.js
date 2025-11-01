@@ -59,8 +59,8 @@ exports.register = async (req, res) => {
       });
     }
 
-    // Validate email only if provided
-    if (email && !validateEmail(email)) {
+    // Validate email only if provided and not empty
+    if (email && email.trim() !== '' && !validateEmail(email)) {
       return res.status(400).json({ 
         error: 'Invalid email format',
         details: 'Please enter a valid email address or leave it blank'
@@ -90,8 +90,8 @@ exports.register = async (req, res) => {
       });
     }
 
-    // Check if email already exists (only if email is provided)
-    if (email) {
+    // Check if email already exists (only if email is provided and not empty)
+    if (email && email.trim() !== '') {
       const existingEmail = await User.findOne({ email: email.toLowerCase() });
       if (existingEmail) {
         return res.status(409).json({ 
@@ -106,7 +106,7 @@ exports.register = async (req, res) => {
       username: username.toLowerCase(),
       firstName: firstName.trim(),
       lastName: lastName.trim(),
-      email: email ? email.toLowerCase() : undefined,
+      email: (email && email.trim() !== '') ? email.toLowerCase() : undefined,
       password,
       profile: {
         lastLogin: new Date()
