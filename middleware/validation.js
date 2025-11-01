@@ -6,11 +6,11 @@ const validateRegistration = (req, res, next) => {
 
   const errors = [];
 
-  // Email validation
-  if (!email || !email.trim()) {
-    errors.push('Email is required');
-  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    errors.push('Please provide a valid email address');
+  // Email validation (optional)
+  if (email && email.trim()) {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      errors.push('Please provide a valid email address');
+    }
   }
 
   // Name validation
@@ -48,7 +48,9 @@ const validateRegistration = (req, res, next) => {
   }
 
   // Sanitize input
-  req.body.email = email.trim().toLowerCase();
+  if (email && email.trim()) {
+    req.body.email = email.trim().toLowerCase();
+  }
   req.body.firstName = firstName.trim();
   req.body.lastName = lastName.trim();
 

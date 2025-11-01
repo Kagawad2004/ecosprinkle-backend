@@ -541,6 +541,10 @@ async function cleanupOldData(deviceId) {
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
+// Import and use auth routes
+const authRoutes = require('./routes/auth');
+app.use('/api/auth', authRoutes);
+
 // Import and use sensor routes
 const sensorRoutes = require('./routes/sensors');
 app.use('/api', sensorRoutes);
