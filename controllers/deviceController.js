@@ -1226,18 +1226,36 @@ exports.getDeviceStatus = async (req, res) => {
 exports.isDeviceOnline = async (req, res) => {
   try {
     const { deviceId } = req.params;
-    const latestData = await SensorData.findOne({ deviceId })
+    
+    // Check both sensor data and device LastUpdated for more accurate status
+    const latestSensorData = await SensorData.findOne({ deviceId })
       .sort({ timestamp: -1 });
+    
+    const device = await Device.findOne({ deviceId });
 
     let isOnline = false;
-    if (latestData && latestData.timestamp) {
-      const now = new Date();
-      const timeDiff = now - latestData.timestamp;
-      // Consider online if updated within last 5 minutes
-      isOnline = timeDiff < (5 * 60 * 1000);
+    const now = new Date();
+    
+    // Check sensor data activity (primary indicator)
+    if (latestSensorData && latestSensorData.timestamp) {
+      const sensorTimeDiff = now - latestSensorData.timestamp;
+      // Consider online if sensor data received within last 1 minute (more responsive)
+      isOnline = sensorTimeDiff < (60 * 1000); // 1 minute
+    }
+    
+    // Fallback check: device LastUpdated (secondary indicator)
+    if (!isOnline && device && device.LastUpdated) {
+      const deviceTimeDiff = now - device.LastUpdated;
+      // Allow slightly longer window for device updates (2 minutes)
+      isOnline = deviceTimeDiff < (2 * 60 * 1000); // 2 minutes
     }
 
-    res.json({ isOnline });
+    res.json({ 
+      isOnline,
+      lastSensorData: latestSensorData?.timestamp,
+      lastDeviceUpdate: device?.LastUpdated,
+      sensorAge: latestSensorData ? Math.floor((now - latestSensorData.timestamp) / 1000) : null
+    });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

@@ -464,7 +464,8 @@ async function storeSensorData(data) {
               'sensorData.receivedAt': new Date(),
               'lastSensorUpdate': new Date(),
               'moistureLevel': overallMoisture,
-              'Status': 'Online'
+              'Status': 'Online',
+              'LastUpdated': new Date()
             }
           }
         );

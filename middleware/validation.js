@@ -2,9 +2,20 @@ const mongoose = require('mongoose');
 
 // Validation middleware for user registration
 const validateRegistration = (req, res, next) => {
-  const { email, firstName, lastName, password, confirmPassword } = req.body;
+  const { username, email, firstName, lastName, password, confirmPassword } = req.body;
 
   const errors = [];
+
+  // Username validation (required)
+  if (!username || !username.trim()) {
+    errors.push('Username is required');
+  } else if (username.trim().length < 3) {
+    errors.push('Username must be at least 3 characters long');
+  } else if (username.trim().length > 30) {
+    errors.push('Username must be no more than 30 characters long');
+  } else if (!/^[a-zA-Z0-9_]+$/.test(username.trim())) {
+    errors.push('Username can only contain letters, numbers, and underscores');
+  }
 
   // Email validation (optional)
   if (email && email.trim()) {
@@ -48,6 +59,7 @@ const validateRegistration = (req, res, next) => {
   }
 
   // Sanitize input
+  req.body.username = username.trim().toLowerCase();
   if (email && email.trim()) {
     req.body.email = email.trim().toLowerCase();
   }
