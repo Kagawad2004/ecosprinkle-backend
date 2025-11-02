@@ -59,12 +59,13 @@ const validateRegistration = (req, res, next) => {
 
 // Validation middleware for login
 const validateLogin = (req, res, next) => {
-  const { email, password } = req.body;
+  const { username, email, password } = req.body;
 
   const errors = [];
 
-  if (!email || !email.trim()) {
-    errors.push('Email is required');
+  // Accept either username or email
+  if ((!username || !username.trim()) && (!email || !email.trim())) {
+    errors.push('Username or email is required');
   }
 
   if (!password) {
@@ -78,7 +79,14 @@ const validateLogin = (req, res, next) => {
     });
   }
 
-  req.body.email = email.trim().toLowerCase();
+  // Normalize the input
+  if (username && username.trim()) {
+    req.body.username = username.trim().toLowerCase();
+  }
+  if (email && email.trim()) {
+    req.body.email = email.trim().toLowerCase();
+  }
+  
   next();
 };
 

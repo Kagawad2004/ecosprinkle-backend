@@ -159,25 +159,38 @@ exports.register = async (req, res) => {
 // Login user
 exports.login = async (req, res) => {
   try {
-    const { username, password, rememberMe = false } = req.body;
+    const { username, email, password, rememberMe = false } = req.body;
 
-    // Input validation
-    if (!username || !password) {
+    // Input validation - accept either username or email
+    if ((!username && !email) || !password) {
       return res.status(400).json({ 
         error: 'Missing credentials',
-        details: 'Username and password are required'
+        details: 'Username/email and password are required'
       });
     }
 
-    if (!validateUsername(username)) {
-      return res.status(400).json({ 
-        error: 'Invalid username format',
-        details: 'Please enter a valid username'
-      });
+    // Determine login method and validate format
+    let query = {};
+    if (username && username.trim()) {
+      if (!validateUsername(username)) {
+        return res.status(400).json({ 
+          error: 'Invalid username format',
+          details: 'Please enter a valid username'
+        });
+      }
+      query = { username: username.toLowerCase() };
+    } else if (email && email.trim()) {
+      if (!validateEmail(email)) {
+        return res.status(400).json({ 
+          error: 'Invalid email format',
+          details: 'Please enter a valid email address'
+        });
+      }
+      query = { email: email.toLowerCase() };
     }
 
-    // Find user by username
-    const user = await User.findOne({ username: username.toLowerCase() });
+    // Find user by username or email
+    const user = await User.findOne(query);
     if (!user) {
       return res.status(401).json({ 
         error: 'Invalid credentials',
