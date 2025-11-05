@@ -102,16 +102,23 @@ exports.register = async (req, res) => {
     }
 
     // Create new user (password will be hashed by pre-save hook)
-    const user = new User({
+    // IMPORTANT: Don't set email field at all if not provided (not even undefined)
+    const userData = {
       username: username.toLowerCase(),
       firstName: firstName.trim(),
       lastName: lastName.trim(),
-      email: (email && email.trim() !== '') ? email.toLowerCase() : undefined,
       password,
       profile: {
         lastLogin: new Date()
       }
-    });
+    };
+    
+    // Only add email field if it's provided and not empty
+    if (email && email.trim() !== '') {
+      userData.email = email.toLowerCase();
+    }
+    
+    const user = new User(userData);
 
     await user.save();
 
@@ -143,9 +150,24 @@ exports.register = async (req, res) => {
     // Handle duplicate key errors
     if (error.code === 11000) {
       const field = Object.keys(error.keyPattern)[0];
+      
+      // Special handling for email duplicate errors when email is null/undefined
+      if (field === 'email' && (!email || email.trim() === '')) {
+        console.error('🚨 CRITICAL: Email duplicate key error with no email provided!');
+        console.error('This indicates a database index issue. Run fix-email-null-issue.js');
+        return res.status(500).json({ 
+          error: 'Database configuration error',
+          details: 'There is a database configuration issue. Please contact support or check server logs.'
+        });
+      }
+      
+      // Provide user-friendly field names
+      const fieldName = field === 'username' ? 'username' : field;
+      const article = field === 'email' ? 'an' : 'a';
+      
       return res.status(409).json({ 
-        error: `${field} already exists`,
-        details: `This ${field} is already registered. Please use a different ${field}.`
+        error: `This ${fieldName} is already taken`,
+        details: `Please choose ${article} different ${fieldName}.`
       });
     }
     
