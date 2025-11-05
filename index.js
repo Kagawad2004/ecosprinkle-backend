@@ -630,6 +630,13 @@ async function logSystemEvent(deviceId, eventType, eventData) {
 app.use(cors());
 app.use(express.json());
 
+// Enable trust proxy for Render deployment (behind reverse proxy)
+// This is required for express-rate-limit to correctly identify users via X-Forwarded-For header
+if (process.env.NODE_ENV === 'production' || process.env.RENDER) {
+  app.set('trust proxy', 1); // Trust first proxy (Render's load balancer)
+  console.log('✅ Trust proxy enabled for production/Render environment');
+}
+
 // NEW: Passport middleware
 app.use(passport.initialize());
 
