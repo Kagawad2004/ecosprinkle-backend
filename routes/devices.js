@@ -4,6 +4,7 @@ const Device = require('../models/Device');
 const User = require('../models/User');
 const authMiddleware = require('../middleware/auth');
 const { validateDeviceRegistration, validateDeviceId, sanitizeInput } = require('../middleware/validation');
+const watchdogService = require('../services/watchdogService');
 
 // Apply input sanitization to all routes
 router.use(sanitizeInput);
@@ -63,6 +64,19 @@ router.post('/register', async (req, res) => {
         if (maxThreshold) existingDevice.thresholds.wetThreshold = maxThreshold;
         
         await existingDevice.save();
+        
+        // Stop watchdog timer - device successfully re-registered
+        watchdogService.stopTracking(normalizedDeviceId);
+        
+        // Send REGISTRATION_COMPLETE command to firmware to cancel its watchdog
+        watchdogService.initializeMqtt();
+        const registrationTopic = `Ecosprinkle/${normalizedDeviceId}/command`;
+        const registrationPayload = JSON.stringify({
+          command: 'REGISTRATION_COMPLETE',
+          timestamp: new Date().toISOString()
+        });
+        watchdogService.mqttClient.publish(registrationTopic, registrationPayload, { qos: 1 });
+        console.log(`🐕 Sent REGISTRATION_COMPLETE command to ${normalizedDeviceId}`);
         
         return res.status(200).json({
           success: true,
@@ -145,6 +159,19 @@ router.post('/register', async (req, res) => {
     await User.findByIdAndUpdate(finalUserId, {
       $push: { devices: device._id }
     });
+
+    // Stop watchdog timer - device successfully registered
+    watchdogService.stopTracking(normalizedDeviceId);
+    
+    // Send REGISTRATION_COMPLETE command to firmware to cancel its watchdog
+    watchdogService.initializeMqtt();
+    const registrationTopic = `Ecosprinkle/${normalizedDeviceId}/command`;
+    const registrationPayload = JSON.stringify({
+      command: 'REGISTRATION_COMPLETE',
+      timestamp: new Date().toISOString()
+    });
+    watchdogService.mqttClient.publish(registrationTopic, registrationPayload, { qos: 1 });
+    console.log(`🐕 Sent REGISTRATION_COMPLETE command to ${normalizedDeviceId}`);
 
     console.log(`✅ Device registered: ${normalizedDeviceId} for user ${finalUserId}`);
     console.log(`📡 MQTT Topics generated:`, mqttTopics);
@@ -595,6 +622,94 @@ router.get('/:deviceId/sensor-data/latest', async (req, res) => {
 router.get('/:deviceId/command-history', async (req, res) => {
   const deviceController = require('../controllers/deviceController');
   await deviceController.getDeviceCommandHistory(req, res);
+});
+
+// POST /api/devices/:deviceId/provision-started - Notify that WiFi provisioning started
+// This starts the backend watchdog timer
+router.post('/:deviceId/provision-started', async (req, res) => {
+  try {
+    const { deviceId } = req.params;
+    const normalizedDeviceId = deviceId?.toLowerCase();
+
+    if (!normalizedDeviceId) {
+      return res.status(400).json({
+        error: 'Missing required field',
+        details: 'deviceId is required'
+      });
+    }
+
+    // Start watchdog tracking
+    watchdogService.startTracking(normalizedDeviceId);
+
+    res.status(200).json({
+      success: true,
+      message: 'WiFi provisioning watchdog started',
+      deviceId: normalizedDeviceId,
+      timeoutMinutes: 5
+    });
+  } catch (error) {
+    console.error('Provision started error:', error);
+    res.status(500).json({
+      error: 'Failed to start watchdog',
+      details: error.message
+    });
+  }
+});
+
+// POST /api/devices/:deviceId/reset-wifi - Manually reset device WiFi
+// This sends immediate MQTT command without waiting for timeout
+router.post('/:deviceId/reset-wifi', async (req, res) => {
+  try {
+    const { deviceId } = req.params;
+    const normalizedDeviceId = deviceId?.toLowerCase();
+
+    if (!normalizedDeviceId) {
+      return res.status(400).json({
+        error: 'Missing required field',
+        details: 'deviceId is required'
+      });
+    }
+
+    // Initialize MQTT if needed
+    watchdogService.initializeMqtt();
+
+    // Send WiFi reset command immediately
+    await watchdogService.sendWiFiResetCommand(normalizedDeviceId);
+
+    // Also stop any active watchdog tracking
+    watchdogService.stopTracking(normalizedDeviceId);
+
+    res.status(200).json({
+      success: true,
+      message: 'WiFi reset command sent',
+      deviceId: normalizedDeviceId
+    });
+  } catch (error) {
+    console.error('WiFi reset error:', error);
+    res.status(500).json({
+      error: 'Failed to reset WiFi',
+      details: error.message
+    });
+  }
+});
+
+// GET /api/devices/watchdog/status - Get watchdog status (for debugging)
+router.get('/watchdog/status', async (req, res) => {
+  try {
+    const trackedDevices = watchdogService.getTrackedDevices();
+    
+    res.status(200).json({
+      success: true,
+      trackedDevices,
+      count: trackedDevices.length
+    });
+  } catch (error) {
+    console.error('Watchdog status error:', error);
+    res.status(500).json({
+      error: 'Failed to get watchdog status',
+      details: error.message
+    });
+  }
 });
 
 module.exports = router;
