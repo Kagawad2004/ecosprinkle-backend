@@ -6,7 +6,7 @@ const userSchema = new mongoose.Schema({
   username: {
     type: String,
     required: true,
-    unique: true,
+    // unique: true, // REMOVED: Defined in schema.index() to avoid duplicate warning
     trim: true,
     lowercase: true,
     minlength: 3,
@@ -16,8 +16,8 @@ const userSchema = new mongoose.Schema({
   email: {
     type: String,
     required: false, // Made optional for username-based auth
-    unique: true,
-    sparse: true, // Allow multiple null values for unique constraint
+    // unique: true, // REMOVED: Defined in schema.index() to avoid duplicate warning
+    // sparse: true, // REMOVED: Defined in schema.index() to avoid duplicate warning
     trim: true,
     lowercase: true
   },
