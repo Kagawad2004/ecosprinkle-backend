@@ -294,13 +294,22 @@ const deviceSchema = new mongoose.Schema({
   },
   soilType: {
     type: String,
-    enum: ['Clay', 'Sandy', 'Loam', 'Silt', 'Peat', 'Unknown'],
+    enum: ['Clay', 'Sandy', 'Loam', 'Loamy', 'Silt', 'Peat', 'Potting Mix', 'Unknown'],
     default: 'Unknown'
   },
   sunlightExposure: {
     type: String,
-    enum: ['Full Sun', 'Partial Sun', 'Shade', 'Unknown'],
+    enum: ['Full Sun', 'Partial Sun', 'Partial', 'Shade', 'Unknown'],
     default: 'Unknown'
+  },
+  growthStage: {
+    type: String,
+    enum: ['Seedling', 'Vegetative', 'Mature', 'Harvest', 'Unknown'],
+    default: 'Seedling'
+  },
+  plantedDate: {
+    type: Date,
+    default: Date.now
   },
 
   // ESP32 MQTT Sensor Data - Real-time readings from device

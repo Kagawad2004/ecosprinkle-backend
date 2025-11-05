@@ -11,7 +11,7 @@ router.use(sanitizeInput);
 // POST /api/devices/register - Register new device (link to existing MQTT device)
 router.post('/register', async (req, res) => {
   try {
-    const { userId, deviceId, macAddress, deviceName, plantType, soilType, sunlight, minThreshold, maxThreshold, wifiSsid, ipAddress } = req.body;
+    const { userId, deviceId, macAddress, deviceName, plantType, soilType, sunlight, growthStage, minThreshold, maxThreshold, wifiSsid, ipAddress } = req.body;
 
     // Normalize deviceId to lowercase for consistency
     const normalizedDeviceId = deviceId?.toLowerCase();
@@ -57,6 +57,8 @@ router.post('/register', async (req, res) => {
         if (plantType) existingDevice.plantType = plantType;
         if (soilType) existingDevice.soilType = soilType;
         if (sunlight) existingDevice.sunlightExposure = sunlight;
+        if (growthStage) existingDevice.growthStage = growthStage;
+        if (growthStage === 'Seedling') existingDevice.plantedDate = new Date(); // Reset planted date for seedling stage
         if (minThreshold) existingDevice.thresholds.dryThreshold = minThreshold;
         if (maxThreshold) existingDevice.thresholds.wetThreshold = maxThreshold;
         
@@ -132,7 +134,9 @@ router.post('/register', async (req, res) => {
       // Plant and environment settings
       plantType: plantType || 'Unknown',
       soilType: soilType || 'Unknown',
-      sunlightExposure: sunlight || 'Unknown'
+      sunlightExposure: sunlight || 'Unknown',
+      growthStage: growthStage || 'Seedling',
+      plantedDate: new Date() // Set initial planted date
     });
 
     await device.save();
