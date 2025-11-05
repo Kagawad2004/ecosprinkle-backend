@@ -68,7 +68,7 @@ class WatchdogService {
         return;
       }
 
-      const topic = `Ecosprinkle/${deviceId}/command`;
+      const topic = `Ecosprinkle/${deviceId}/commands/control`;
       const payload = JSON.stringify({
         command: 'CLEAR_WIFI',
         timestamp: new Date().toISOString()

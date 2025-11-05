@@ -70,7 +70,7 @@ router.post('/register', async (req, res) => {
         
         // Send REGISTRATION_COMPLETE command to firmware to cancel its watchdog
         watchdogService.initializeMqtt();
-        const registrationTopic = `Ecosprinkle/${normalizedDeviceId}/command`;
+        const registrationTopic = `Ecosprinkle/${normalizedDeviceId}/commands/control`;
         const registrationPayload = JSON.stringify({
           command: 'REGISTRATION_COMPLETE',
           timestamp: new Date().toISOString()
@@ -165,7 +165,7 @@ router.post('/register', async (req, res) => {
     
     // Send REGISTRATION_COMPLETE command to firmware to cancel its watchdog
     watchdogService.initializeMqtt();
-    const registrationTopic = `Ecosprinkle/${normalizedDeviceId}/command`;
+    const registrationTopic = `Ecosprinkle/${normalizedDeviceId}/commands/control`;
     const registrationPayload = JSON.stringify({
       command: 'REGISTRATION_COMPLETE',
       timestamp: new Date().toISOString()
@@ -282,6 +282,8 @@ router.get('/', authMiddleware, async (req, res) => {
         plantType: device.plantType,
         soilType: device.soilType,
         sunlightExposure: device.sunlightExposure,
+        growthStage: device.growthStage,  // Add growthStage field
+        plantedDate: device.plantedDate,  // Also include plantedDate for reference
         createdAt: device.createdAt,
         lastUpdated: device.LastUpdated
       };
@@ -356,8 +358,8 @@ router.get('/:deviceId', async (req, res) => {
   }
 });
 
-// PUT /api/devices/:deviceId - Update device configuration
-router.put('/:deviceId', authMiddleware, validateDeviceId, async (req, res) => {
+// PUT /api/devices/:deviceId - Update device settings
+router.put('/:deviceId', authMiddleware, async (req, res) => {
   try {
     const { deviceId } = req.params;
     const userId = req.user.userId;
@@ -365,7 +367,7 @@ router.put('/:deviceId', authMiddleware, validateDeviceId, async (req, res) => {
 
     // Fields that can be updated
     const allowedUpdates = [
-      'DeviceName', 'plantType', 'soilType', 'sunlightExposure',
+      'DeviceName', 'plantType', 'soilType', 'sunlightExposure', 'growthStage',
       'thresholds', 'wateringMode', 'isWateringEnabled', 'schedule', 'location'
     ];
 
@@ -430,7 +432,7 @@ router.patch('/:deviceId', authMiddleware, validateDeviceId, async (req, res) =>
 
     // Fields that can be updated
     const allowedUpdates = [
-      'DeviceName', 'plantType', 'soilType', 'sunlightExposure',
+      'DeviceName', 'plantType', 'soilType', 'sunlightExposure', 'growthStage',
       'thresholds', 'wateringMode', 'isWateringEnabled', 'schedule', 'location'
     ];
 
