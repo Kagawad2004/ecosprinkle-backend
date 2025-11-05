@@ -150,14 +150,16 @@ exports.register = async (req, res) => {
     // Handle duplicate key errors
     if (error.code === 11000) {
       const field = Object.keys(error.keyPattern)[0];
+      const emailValue = error.keyValue?.email;
       
       // Special handling for email duplicate errors when email is null/undefined
-      if (field === 'email' && (!email || email.trim() === '')) {
-        console.error('🚨 CRITICAL: Email duplicate key error with no email provided!');
+      if (field === 'email' && (emailValue === null || emailValue === undefined || emailValue === '')) {
+        console.error('🚨 CRITICAL: Email duplicate key error with null/empty email!');
+        console.error('Email value in error:', emailValue);
         console.error('This indicates a database index issue. Run fix-email-null-issue.js');
         return res.status(500).json({ 
           error: 'Database configuration error',
-          details: 'There is a database configuration issue. Please contact support or check server logs.'
+          details: 'Unable to create account due to database configuration. Please try again later or contact support.'
         });
       }
       
