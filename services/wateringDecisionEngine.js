@@ -198,6 +198,26 @@ class WateringDecisionEngine {
       // Get calibration (use custom or default)
       const calibration = device.calibration || this.getDefaultCalibration();
 
+      // 🔧 SENSOR VALIDATION: Detect disconnected/invalid sensors
+      // ADC 4095 = sensor disconnected or in air (invalid reading)
+      const DISCONNECTED_THRESHOLD = 4000; // ADC > 4000 = likely disconnected
+      
+      const zone1Valid = sensorData.zone1 < DISCONNECTED_THRESHOLD;
+      const zone2Valid = sensorData.zone2 < DISCONNECTED_THRESHOLD;
+      const zone3Valid = sensorData.zone3 < DISCONNECTED_THRESHOLD;
+      
+      const validSensorCount = [zone1Valid, zone2Valid, zone3Valid].filter(Boolean).length;
+      
+      // If less than 2 sensors are valid, abort watering decision
+      if (validSensorCount < 2) {
+        console.log(`⚠️ INSUFFICIENT VALID SENSORS: Only ${validSensorCount}/3 sensors working`);
+        console.log(`   Zone 1: ${sensorData.zone1} ADC ${zone1Valid ? '✅' : '❌ DISCONNECTED'}`);
+        console.log(`   Zone 2: ${sensorData.zone2} ADC ${zone2Valid ? '✅' : '❌ DISCONNECTED'}`);
+        console.log(`   Zone 3: ${sensorData.zone3} ADC ${zone3Valid ? '✅' : '❌ DISCONNECTED'}`);
+        console.log(`   🛑 Skipping watering decision - need at least 2 working sensors`);
+        return; // Don't make watering decisions with insufficient sensors
+      }
+
       // Calculate moisture percentages for each zone
       const zone1Percent = this.calculateMoisturePercent(sensorData.zone1, calibration.zone1);
       const zone2Percent = this.calculateMoisturePercent(sensorData.zone2, calibration.zone2);
@@ -207,15 +227,20 @@ class WateringDecisionEngine {
       const thresholds = device.customThresholds || 
         this.calculateThresholdsFromSettings(device);
 
-      // Majority voting logic
-      const dryVotes = [zone1Percent, zone2Percent, zone3Percent]
-        .filter(p => p < thresholds.dry).length;
+      // Majority voting logic - ONLY count valid sensors
+      const validReadings = [
+        { percent: zone1Percent, valid: zone1Valid },
+        { percent: zone2Percent, valid: zone2Valid },
+        { percent: zone3Percent, valid: zone3Valid }
+      ].filter(r => r.valid);
       
-      const wetVotes = [zone1Percent, zone2Percent, zone3Percent]
-        .filter(p => p > thresholds.wet).length;
+      const dryVotes = validReadings.filter(r => r.percent < thresholds.dry).length;
+      const wetVotes = validReadings.filter(r => r.percent > thresholds.wet).length;
 
-      const shouldWater = dryVotes >= 2; // 2 or more zones are dry
-      const shouldStop = wetVotes >= 2;  // 2 or more zones are wet
+      // Need majority of VALID sensors (not total sensors)
+      const majorityNeeded = Math.ceil(validSensorCount / 2);
+      const shouldWater = dryVotes >= majorityNeeded;
+      const shouldStop = wetVotes >= majorityNeeded;
 
       // 🔧 FIX: Use REAL pump state from ESP32, not stale database value
       const actualPumpState = sensorData.pumpState || false;
@@ -239,12 +264,20 @@ class WateringDecisionEngine {
       console.log(`   Sun Exposure: ${device.sunlightExposure || device.sunlight || 'Not set'}`);
       console.log(`   Growth Stage: ${device.growthStage || device.GrowthStage || 'Not set'}`);
       console.log(`   Mode: ${device.wateringMode}`);
-      console.log(`   Zone 1: ${zone1Percent}% [ADC: ${sensorData.zone1}] ${zone1Percent < thresholds.dry ? '🔴 DRY' : zone1Percent > thresholds.wet ? '🟢 WET' : '🟡 OK'}`);
-      console.log(`   Zone 2: ${zone2Percent}% [ADC: ${sensorData.zone2}] ${zone2Percent < thresholds.dry ? '🔴 DRY' : zone2Percent > thresholds.wet ? '🟢 WET' : '🟡 OK'}`);
-      console.log(`   Zone 3: ${zone3Percent}% [ADC: ${sensorData.zone3}] ${zone3Percent < thresholds.dry ? '🔴 DRY' : zone3Percent > thresholds.wet ? '🟢 WET' : '🟡 OK'}`);
+      console.log(`   Valid Sensors: ${validSensorCount}/3`);
+      
+      // Show sensor status with validation
+      const getStatus = (percent, valid) => {
+        if (!valid) return '❌ DISCONNECTED';
+        return percent < thresholds.dry ? '🔴 DRY' : percent > thresholds.wet ? '🟢 WET' : '🟡 OK';
+      };
+      
+      console.log(`   Zone 1: ${zone1Percent}% [ADC: ${sensorData.zone1}] ${getStatus(zone1Percent, zone1Valid)}`);
+      console.log(`   Zone 2: ${zone2Percent}% [ADC: ${sensorData.zone2}] ${getStatus(zone2Percent, zone2Valid)}`);
+      console.log(`   Zone 3: ${zone3Percent}% [ADC: ${sensorData.zone3}] ${getStatus(zone3Percent, zone3Valid)}`);
       console.log(`   Average moisture: ${avgMoisturePercent}%`);
       console.log(`   Thresholds: Dry < ${thresholds.dry}% | Wet > ${thresholds.wet}%`);
-      console.log(`   Votes: Dry=${dryVotes}/3, Wet=${wetVotes}/3`);
+      console.log(`   Votes: Dry=${dryVotes}/${validSensorCount}, Wet=${wetVotes}/${validSensorCount} (majority needed: ${majorityNeeded})`);
       console.log(`   Decision: Should water = ${shouldWater}, Should stop = ${shouldStop}`);
       console.log(`   Pump state (ESP32): ${actualPumpState ? 'ON' : 'OFF'}`);
       console.log(`   Pump state (DB): ${device.isPumpOn ? 'ON' : 'OFF'}`);
@@ -301,10 +334,13 @@ class WateringDecisionEngine {
         zone1Percent,
         zone2Percent,
         zone3Percent,
+        zone1Valid,
+        zone2Valid,
+        zone3Valid,
         dryVotes,
         wetVotes,
         majorityVoteDry: shouldWater,
-        validSensors: 3
+        validSensors: validSensorCount
       });
 
     } catch (error) {
