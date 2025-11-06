@@ -14,6 +14,10 @@ class WateringDecisionEngine {
     };
     
     this.mqttClient = null;
+    
+    // Track last command sent to each device to prevent duplicates
+    this.lastCommands = new Map(); // deviceId → { command, timestamp }
+    this.COMMAND_DEBOUNCE_MS = 30000; // Don't send same command within 30 seconds
   }
 
   /**
@@ -248,21 +252,38 @@ class WateringDecisionEngine {
       // Only take action in AUTO mode
       if (device.wateringMode === 'auto') {
         console.log(`✅ AUTO mode detected - evaluating pump control...`);
+        
+        // Check if we recently sent a command to avoid spam
+        const lastCommand = this.lastCommands.get(deviceId);
+        const now = Date.now();
+        
         if (shouldWater && !actualPumpState) {  // ← Use ACTUAL pump state from ESP32!
-          console.log(`💧 TRIGGERING PUMP ON: ${dryVotes}/3 zones dry`);
-          console.log(`   🎯 AUTO mode: Pump will run until sensors reach ${thresholds.wet}% (wet threshold)`);
-          console.log(`   📊 Current avg moisture: ${avgMoisturePercent}% → Target: ${thresholds.wet}%`);
-          // 🎯 AUTO MODE: Use 7200s (2 hours) as safety timeout
-          // Backend monitors sensors every 10s and sends PUMP_OFF when wet threshold reached
-          // This prevents infinite running if sensors fail or MQTT disconnects
-          const autoModeDuration = 7200; // 2 hours safety maximum
-          await this.sendPumpCommand(deviceId, 'PUMP_ON', autoModeDuration, 
-            `AUTO: ${dryVotes}/3 zones below ${thresholds.dry}% - Run until ${thresholds.wet}%`);
+          // Check if we already sent PUMP_ON recently
+          if (lastCommand && lastCommand.command === 'PUMP_ON' && 
+              (now - lastCommand.timestamp) < this.COMMAND_DEBOUNCE_MS) {
+            console.log(`⏭️ SKIPPING PUMP_ON: Already sent ${Math.floor((now - lastCommand.timestamp) / 1000)}s ago`);
+          } else {
+            console.log(`💧 TRIGGERING PUMP ON: ${dryVotes}/3 zones dry`);
+            console.log(`   🎯 AUTO mode: Pump will run until sensors reach ${thresholds.wet}% (wet threshold)`);
+            console.log(`   📊 Current avg moisture: ${avgMoisturePercent}% → Target: ${thresholds.wet}%`);
+            // 🎯 AUTO MODE: Use 7200s (2 hours) as safety timeout
+            // Backend monitors sensors every 5s and sends PUMP_OFF when wet threshold reached
+            // This prevents infinite running if sensors fail or MQTT disconnects
+            const autoModeDuration = 7200; // 2 hours safety maximum
+            await this.sendPumpCommand(deviceId, 'PUMP_ON', autoModeDuration, 
+              `AUTO: ${dryVotes}/3 zones below ${thresholds.dry}% - Run until ${thresholds.wet}%`);
+          }
         } else if (shouldStop && actualPumpState) {  // ← Use ACTUAL pump state
-          console.log(`🛑 TRIGGERING PUMP OFF: ${wetVotes}/3 zones wet`);
-          console.log(`   ✅ Wet threshold ${thresholds.wet}% reached!`);
-          await this.sendPumpCommand(deviceId, 'PUMP_OFF', 0, 
-            `${wetVotes}/3 zones above ${thresholds.wet}% threshold`);
+          // Check if we already sent PUMP_OFF recently
+          if (lastCommand && lastCommand.command === 'PUMP_OFF' && 
+              (now - lastCommand.timestamp) < this.COMMAND_DEBOUNCE_MS) {
+            console.log(`⏭️ SKIPPING PUMP_OFF: Already sent ${Math.floor((now - lastCommand.timestamp) / 1000)}s ago`);
+          } else {
+            console.log(`🛑 TRIGGERING PUMP OFF: ${wetVotes}/3 zones wet`);
+            console.log(`   ✅ Wet threshold ${thresholds.wet}% reached!`);
+            await this.sendPumpCommand(deviceId, 'PUMP_OFF', 0, 
+              `${wetVotes}/3 zones above ${thresholds.wet}% threshold`);
+          }
         } else {
           console.log(`⏸️ No action: shouldWater=${shouldWater}, actualPumpState=${actualPumpState}`);
         }
@@ -307,6 +328,12 @@ class WateringDecisionEngine {
       console.log(`📦 Payload: ${JSON.stringify(payload)}`);
       this.mqttClient.publish(topic, JSON.stringify(payload));
       console.log(`✅ MQTT publish successful`);
+      
+      // Track this command to prevent duplicates
+      this.lastCommands.set(deviceId, {
+        command,
+        timestamp: Date.now()
+      });
     } else {
       console.error(`❌ MQTT client not available - cannot send command!`);
     }
