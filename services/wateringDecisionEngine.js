@@ -72,6 +72,19 @@ class WateringDecisionEngine {
         return;
       }
 
+      // 🐕 WATCHDOG SAFETY: Auto-confirm registration if device exists in DB
+      // This prevents the 30-minute watchdog from resetting WiFi during normal operation
+      if (!device.registrationConfirmed && this.mqttClient) {
+        console.log(`🐕 Device ${deviceId} found in DB but not confirmed - sending DEVICE_REGISTERED`);
+        await this.sendRegistrationConfirmation(deviceId);
+        
+        // Mark as confirmed in database
+        await Device.findOneAndUpdate(
+          { deviceId },
+          { registrationConfirmed: true }
+        );
+      }
+
       // Get calibration (use custom or default)
       const calibration = device.calibration || this.getDefaultCalibration();
 
@@ -160,6 +173,23 @@ class WateringDecisionEngine {
         lastCommandTime: new Date()
       }
     );
+  }
+
+  /**
+   * Send DEVICE_REGISTERED confirmation to disable watchdog timer
+   */
+  async sendRegistrationConfirmation(deviceId) {
+    const payload = {
+      command: 'DEVICE_REGISTERED',
+      commandId: `reg_${Date.now()}`,
+      timestamp: Math.floor(Date.now() / 1000)
+    };
+
+    console.log(`🐕 Sending DEVICE_REGISTERED to ${deviceId} to disable watchdog`);
+    
+    if (this.mqttClient) {
+      this.mqttClient.publish(`ecosprinkle/${deviceId}/command`, JSON.stringify(payload));
+    }
   }
 
   /**

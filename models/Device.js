@@ -476,6 +476,13 @@ const deviceSchema = new mongoose.Schema({
   firmwareVersion: {
     type: String,
     default: '1.0'
+  },
+  
+  // Registration confirmation (for watchdog safety)
+  registrationConfirmed: {
+    type: Boolean,
+    default: false,
+    comment: 'Whether DEVICE_REGISTERED command was sent to disable 30-min watchdog'
   }
 });
 
