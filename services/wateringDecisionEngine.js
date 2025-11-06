@@ -24,21 +24,21 @@ class WateringDecisionEngine {
   }
 
   /**
-   * Calculate moisture percentage from raw ADC using zone-specific calibration
-   * CAPACITIVE SENSORS: LOW ADC = DRY, HIGH ADC = WET
+   * CRITICAL: ADC-to-Moisture conversion
+   * RESISTIVE SENSORS: HIGH ADC = DRY, LOW ADC = WET (INVERTED!)
    */
   calculateMoisturePercent(adc, zoneCalibration) {
-    const { dry, wet } = zoneCalibration; // Note: 'dry' has lower ADC value
+    const { dry, wet } = zoneCalibration; // dry = HIGH ADC (4095), wet = LOW ADC (1050)
     
     // Clamp ADC to calibration range
-    if (adc < dry) adc = dry;   // Below dry threshold
-    if (adc > wet) adc = wet;   // Above wet threshold
+    if (adc < wet) adc = wet;   // Below wet threshold (low ADC)
+    if (adc > dry) adc = dry;   // Above dry threshold (high ADC)
     
-    // Calculate percentage: Higher ADC = Higher moisture %
-    // DRY (1050 ADC) → 0%
-    // WET (4095 ADC) → 100%
-    const percent = Math.round(((adc - dry) / (wet - dry)) * 100);
-    return percent;
+    // Calculate percentage: INVERTED for resistive sensors
+    // DRY (4095 ADC) → 0%
+    // WET (1050 ADC) → 100%
+    const percent = Math.round(100 - ((adc - wet) / (dry - wet)) * 100);
+    return Math.max(0, Math.min(100, percent));
   }
 
   /**
@@ -50,13 +50,13 @@ class WateringDecisionEngine {
 
   /**
    * Get default calibration values for a zone
-   * CAPACITIVE SENSORS: LOW ADC = DRY, HIGH ADC = WET
+   * RESISTIVE SENSORS: HIGH ADC = DRY, LOW ADC = WET (INVERTED!)
    */
   getDefaultCalibration() {
     return {
-      zone1: { dry: 1050, wet: 4095 }, // Leafy vegetables (dry=low ADC, wet=high ADC)
-      zone2: { dry: 1070, wet: 4095 }, // Tomatoes
-      zone3: { dry: 1150, wet: 4095 }  // Root vegetables
+      zone1: { dry: 4095, wet: 1050 }, // dry = HIGH ADC (4095), wet = LOW ADC (1050)
+      zone2: { dry: 4095, wet: 1070 }, // Resistive sensor behavior
+      zone3: { dry: 4095, wet: 1150 }  // Resistive sensor behavior
     };
   }
 
@@ -276,6 +276,15 @@ class WateringDecisionEngine {
     try {
       const device = await Device.findOne({ deviceId });
       
+      // Calculate median ADC from 3 zones
+      const adcValues = [rawData.zone1, rawData.zone2, rawData.zone3].sort((a, b) => a - b);
+      const median = adcValues[1]; // Middle value
+      
+      // Determine sensor health based on valid sensors
+      const sensorHealth = processedData.validSensors === 3 ? 'normal' :
+                          processedData.validSensors === 2 ? 'degraded' :
+                          processedData.validSensors === 1 ? 'warning' : 'error';
+      
       const sensorEntry = new SensorData({
         deviceId,
         userID: device?.userID,
@@ -289,14 +298,18 @@ class WateringDecisionEngine {
         wetVotes: processedData.wetVotes,
         majorityVoteDry: processedData.majorityVoteDry,
         validSensors: processedData.validSensors,
-        rssi: rawData.rssi,
+        median: median,
+        sensorHealth: sensorHealth,
+        pumpState: rawData.pumpState ? 1 : 0,
+        rssi: rawData.rssi || -50,
         timestamp: rawData.timestamp ? new Date(rawData.timestamp * 1000) : new Date(),
-        deviceTimestamp: rawData.timestamp
+        deviceTimestamp: rawData.timestamp || Date.now()
       });
 
       await sensorEntry.save();
+      console.log(`✅ Watering engine: Sensor data saved to SensorData collection`);
     } catch (error) {
-      console.error(`Error storing sensor data:`, error);
+      console.error(`❌ Watering engine: Error storing sensor data:`, error);
     }
   }
 }
