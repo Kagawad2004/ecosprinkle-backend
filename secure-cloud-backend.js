@@ -224,6 +224,15 @@ class MQTTManager {
                 const wateringEngine = require('./services/wateringDecisionEngine');
                 wateringEngine.setMqttClient(this.client); // Pass MQTT client for sending commands
                 
+                // 📅 SCHEDULE EXECUTOR
+                // Initialize schedule executor with MQTT client (only once)
+                const scheduleExecutor = require('./services/scheduleExecutor');
+                if (!scheduleExecutor.isRunning) {
+                    scheduleExecutor.setMqttClient(this.client);
+                    scheduleExecutor.start();
+                    console.log('📅 Schedule Executor initialized and started');
+                }
+                
                 // Convert processed data to format expected by decision engine
                 // CRITICAL: Include pump state from ESP32 for accurate decision making
                 const sensorDataForEngine = {
