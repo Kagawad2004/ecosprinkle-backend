@@ -637,7 +637,8 @@ router.delete('/:deviceId', authMiddleware, validateDeviceId, async (req, res) =
         };
         
         // Send to device-specific command topic (matching ESP32 subscription)
-        const commandTopic = `Ecosprinkle/${deviceId}/commands/control`;
+        // FIXED: Must match ESP32 subscription: ecosprinkle/{deviceId}/command
+        const commandTopic = `ecosprinkle/${deviceId}/command`;
         console.log(`📡 Sending DEVICE_DELETED to ${commandTopic} via cloud MQTT...`);
         
         mqttClient.publish(
