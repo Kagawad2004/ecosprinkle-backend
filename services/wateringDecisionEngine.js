@@ -121,16 +121,24 @@ class WateringDecisionEngine {
       console.log(`   Wet threshold: ${thresholds.wet}%`);
       console.log(`   Votes: Dry=${dryVotes}, Wet=${wetVotes}`);
       console.log(`   Decision: Should water = ${shouldWater}`);
+      console.log(`   Pump state: ${device.isPumpOn ? 'ON' : 'OFF'}`);
 
       // Only take action in AUTO mode
       if (device.wateringMode === 'auto') {
+        console.log(`✅ AUTO mode detected - evaluating pump control...`);
         if (shouldWater && !device.isPumpOn) {
+          console.log(`💧 TRIGGERING PUMP ON: ${dryVotes}/3 zones dry`);
           await this.sendPumpCommand(deviceId, 'PUMP_ON', 60, 
             `${dryVotes}/3 zones below ${thresholds.dry}% threshold`);
         } else if (shouldStop && device.isPumpOn) {
+          console.log(`🛑 TRIGGERING PUMP OFF: ${wetVotes}/3 zones wet`);
           await this.sendPumpCommand(deviceId, 'PUMP_OFF', 0, 
             `${wetVotes}/3 zones above ${thresholds.wet}% threshold`);
+        } else {
+          console.log(`⏸️ No action: shouldWater=${shouldWater}, isPumpOn=${device.isPumpOn}`);
         }
+      } else {
+        console.log(`⚠️ Skipping pump control - Mode is ${device.wateringMode} (not auto)`);
       }
 
       // Store processed data in database
@@ -165,7 +173,13 @@ class WateringDecisionEngine {
     console.log(`📤 Sending ${command} to ${deviceId}: ${reason}`);
     
     if (this.mqttClient) {
-      this.mqttClient.publish(`ecosprinkle/${deviceId}/command`, JSON.stringify(payload));
+      const topic = `ecosprinkle/${deviceId}/command`;
+      console.log(`📡 Publishing to MQTT topic: ${topic}`);
+      console.log(`📦 Payload: ${JSON.stringify(payload)}`);
+      this.mqttClient.publish(topic, JSON.stringify(payload));
+      console.log(`✅ MQTT publish successful`);
+    } else {
+      console.error(`❌ MQTT client not available - cannot send command!`);
     }
 
     // Update device state in database
