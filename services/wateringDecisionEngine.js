@@ -250,14 +250,16 @@ class WateringDecisionEngine {
       if (device.wateringMode === 'auto') {
         console.log(`✅ AUTO mode detected - evaluating pump control...`);
         if (shouldWater && !actualPumpState) {  // ← Use ACTUAL pump state from ESP32!
-          // 🧠 Calculate smart duration based on soil conditions
-          const smartDuration = this.calculateSmartDuration(device, avgMoisturePercent, thresholds);
-          
           console.log(`💧 TRIGGERING PUMP ON: ${dryVotes}/3 zones dry`);
-          await this.sendPumpCommand(deviceId, 'PUMP_ON', smartDuration, 
-            `${dryVotes}/3 zones below ${thresholds.dry}% threshold`);
+          console.log(`   🎯 AUTO mode: Pump will run until sensors reach ${thresholds.wet}% (wet threshold)`);
+          console.log(`   📊 Current avg moisture: ${avgMoisturePercent}% → Target: ${thresholds.wet}%`);
+          // 🎯 AUTO MODE: Send duration=0 to run indefinitely until PUMP_OFF command
+          // Backend will automatically send PUMP_OFF when sensors reach wet threshold
+          await this.sendPumpCommand(deviceId, 'PUMP_ON', 0, 
+            `AUTO: ${dryVotes}/3 zones below ${thresholds.dry}% - Run until ${thresholds.wet}%`);
         } else if (shouldStop && actualPumpState) {  // ← Use ACTUAL pump state
           console.log(`🛑 TRIGGERING PUMP OFF: ${wetVotes}/3 zones wet`);
+          console.log(`   ✅ Wet threshold ${thresholds.wet}% reached!`);
           await this.sendPumpCommand(deviceId, 'PUMP_OFF', 0, 
             `${wetVotes}/3 zones above ${thresholds.wet}% threshold`);
         } else {
