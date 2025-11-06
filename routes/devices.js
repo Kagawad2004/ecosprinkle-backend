@@ -736,7 +736,7 @@ router.get('/:deviceId/command-history', async (req, res) => {
 router.post('/:deviceId/provision-started', async (req, res) => {
   try {
     const { deviceId } = req.params;
-    const normalizedDeviceId = deviceId?.toLowerCase();
+    const normalizedDeviceId = normalizeDeviceId(deviceId);
 
     if (!normalizedDeviceId) {
       return res.status(400).json({
@@ -768,7 +768,7 @@ router.post('/:deviceId/provision-started', async (req, res) => {
 router.post('/:deviceId/reset-wifi', async (req, res) => {
   try {
     const { deviceId } = req.params;
-    const normalizedDeviceId = deviceId?.toLowerCase();
+    const normalizedDeviceId = normalizeDeviceId(deviceId);
 
     if (!normalizedDeviceId) {
       return res.status(400).json({
@@ -824,7 +824,7 @@ router.get('/watchdog/status', async (req, res) => {
 // GET /api/devices/:deviceId/settings - Get device settings (thresholds, calibration, mode)
 router.get('/:deviceId/settings', authMiddleware, async (req, res) => {
   try {
-    const normalizedDeviceId = req.params.deviceId?.toLowerCase();
+    const normalizedDeviceId = normalizeDeviceId(req.params.deviceId);
     
     const device = await Device.findOne({ 
       deviceId: normalizedDeviceId,
@@ -861,7 +861,7 @@ router.get('/:deviceId/settings', authMiddleware, async (req, res) => {
 // PUT /api/devices/:deviceId/settings - Update device settings
 router.put('/:deviceId/settings', authMiddleware, async (req, res) => {
   try {
-    const normalizedDeviceId = req.params.deviceId?.toLowerCase();
+    const normalizedDeviceId = normalizeDeviceId(req.params.deviceId);
     const { plantType, customThresholds, wateringMode, calibration } = req.body;
 
     // Validate thresholds
