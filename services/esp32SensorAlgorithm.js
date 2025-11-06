@@ -23,11 +23,9 @@ function validateSensorData(data) {
         return { isValid: false, error: 'Data is not an object' };
     }
 
-    const required = ['deviceId', 'zone1', 'zone2', 'zone3', 
-                     'zone1Percent', 'zone2Percent', 'zone3Percent',
-                     'dryVotes', 'wetVotes', 'majorityVoteDry', 
-                     'validSensors', 'sensorHealth', 'median', 
-                     'pumpState', 'rssi', 'timestamp'];
+    // ESP32 sends MINIMAL data: deviceId, zone1-3 ADC values, timestamp, rssi, pumpState
+    // Backend calculates percentages, voting, and status from raw ADC values
+    const required = ['deviceId', 'zone1', 'zone2', 'zone3', 'timestamp'];
 
     for (const field of required) {
         if (!(field in data)) {
@@ -40,13 +38,6 @@ function validateSensorData(data) {
         data.zone2 < 0 || data.zone2 > 4095 ||
         data.zone3 < 0 || data.zone3 > 4095) {
         return { isValid: false, error: 'ADC values out of range (0-4095)' };
-    }
-
-    // Validate percentages (0-100)
-    if (data.zone1Percent < 0 || data.zone1Percent > 100 ||
-        data.zone2Percent < 0 || data.zone2Percent > 100 ||
-        data.zone3Percent < 0 || data.zone3Percent > 100) {
-        return { isValid: false, error: 'Moisture percentages out of range (0-100)' };
     }
 
     return { isValid: true };
@@ -107,48 +98,94 @@ function isSensorValid(adc) {
  * @returns {Object} Processed sensor data with all zones
  */
 function processSensorData(rawData) {
+    // Calculate moisture percentages from raw ADC values
+    const zone1Percent = adcToMoisturePercent(rawData.zone1);
+    const zone2Percent = adcToMoisturePercent(rawData.zone2);
+    const zone3Percent = adcToMoisturePercent(rawData.zone3);
+    
     // Process Zone 1
     const zone1 = {
         rawADC: rawData.zone1,
-        moisturePercent: rawData.zone1Percent,
-        status: getSensorStatus(rawData.zone1, rawData.zone1Percent),
-        vote: getVotingDecision(rawData.zone1Percent),
+        moisturePercent: zone1Percent,
+        status: getSensorStatus(rawData.zone1, zone1Percent),
+        vote: getVotingDecision(zone1Percent),
         isValid: isSensorValid(rawData.zone1)
     };
 
     // Process Zone 2
     const zone2 = {
         rawADC: rawData.zone2,
-        moisturePercent: rawData.zone2Percent,
-        status: getSensorStatus(rawData.zone2, rawData.zone2Percent),
-        vote: getVotingDecision(rawData.zone2Percent),
+        moisturePercent: zone2Percent,
+        status: getSensorStatus(rawData.zone2, zone2Percent),
+        vote: getVotingDecision(zone2Percent),
         isValid: isSensorValid(rawData.zone2)
     };
 
     // Process Zone 3
     const zone3 = {
         rawADC: rawData.zone3,
-        moisturePercent: rawData.zone3Percent,
-        status: getSensorStatus(rawData.zone3, rawData.zone3Percent),
-        vote: getVotingDecision(rawData.zone3Percent),
+        moisturePercent: zone3Percent,
+        status: getSensorStatus(rawData.zone3, zone3Percent),
+        vote: getVotingDecision(zone3Percent),
         isValid: isSensorValid(rawData.zone3)
     };
 
-    // Voting results (directly from ESP32)
+    // Calculate voting results (backend does the voting logic)
+    let dryVotes = 0;
+    let wetVotes = 0;
+    let validSensors = 0;
+    
+    if (zone1.isValid) {
+        validSensors++;
+        if (zone1.vote === 'WATER') dryVotes++;
+        else if (zone1.vote === 'NO_WATER') wetVotes++;
+    }
+    
+    if (zone2.isValid) {
+        validSensors++;
+        if (zone2.vote === 'WATER') dryVotes++;
+        else if (zone2.vote === 'NO_WATER') wetVotes++;
+    }
+    
+    if (zone3.isValid) {
+        validSensors++;
+        if (zone3.vote === 'WATER') dryVotes++;
+        else if (zone3.vote === 'NO_WATER') wetVotes++;
+    }
+    
+    const majorityVoteDry = dryVotes >= 2; // Need 2+ zones voting for water
+    
+    // Calculate median ADC from valid sensors
+    const validADCs = [];
+    if (zone1.isValid) validADCs.push(rawData.zone1);
+    if (zone2.isValid) validADCs.push(rawData.zone2);
+    if (zone3.isValid) validADCs.push(rawData.zone3);
+    
+    validADCs.sort((a, b) => a - b);
+    const medianADC = validADCs.length > 0 
+        ? validADCs[Math.floor(validADCs.length / 2)]
+        : 0;
+    
+    // Determine sensor health
+    const sensorHealth = validSensors === 3 ? 'GOOD' :
+                        validSensors === 2 ? 'DEGRADED' :
+                        validSensors === 1 ? 'POOR' : 'FAILED';
+
+    // Voting results
     const votingResults = {
-        dryVotes: rawData.dryVotes,
-        wetVotes: rawData.wetVotes,
-        majorityVoteDry: rawData.majorityVoteDry,
-        validSensors: rawData.validSensors,
-        medianADC: rawData.median,
-        wateringRecommendation: rawData.majorityVoteDry ? 'WATER_NEEDED' : 'NO_WATER_NEEDED'
+        dryVotes,
+        wetVotes,
+        majorityVoteDry,
+        validSensors,
+        medianADC,
+        wateringRecommendation: majorityVoteDry ? 'START_WATERING' : 'NO_WATERING_NEEDED'
     };
 
     // Device status
     const deviceStatus = {
-        sensorHealth: rawData.sensorHealth,
-        pumpState: rawData.pumpState,
-        rssi: rawData.rssi,
+        sensorHealth,
+        pumpState: rawData.pumpState || 0,
+        rssi: rawData.rssi || 0,
         deviceTimestamp: rawData.timestamp
     };
 
