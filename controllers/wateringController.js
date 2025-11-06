@@ -508,6 +508,9 @@ exports.upsertSchedule = async (req, res) => {
     // 🚨 CRITICAL FIX: Send ONE ADD_SCHEDULE command per day with delay between each
     let totalCommands = 0;
     
+    // 🧠 SMART DURATION: Import watering decision engine for duration calculation
+    const WateringDecisionEngine = require('../services/wateringDecisionEngine');
+    
     for (const schedule of device.schedules) {
       const [hour, minute] = schedule.time.split(':').map(Number);
       
@@ -516,6 +519,30 @@ exports.upsertSchedule = async (req, res) => {
         // 🚨 Convert database format (0-6) back to ESP32 format (1-7)
         const esp32DayOfWeek = dayOfWeek === 0 ? 7 : dayOfWeek;
         const scheduleId = `${schedule.timeSlotId}_day${esp32DayOfWeek}`;
+        
+        // 🧠 SMART DURATION: Calculate optimal duration based on device settings
+        // LIMITATION: We estimate moisture at 25% since we don't know actual 
+        // moisture at future schedule execution time. This is a conservative
+        // middle-ground that adapts based on soil type and growth stage.
+        // 
+        // Future Enhancement: ESP32 could send "SCHEDULE_ABOUT_TO_TRIGGER" 
+        // event 30s before execution, allowing backend to calculate duration
+        // based on current sensor readings.
+        let smartDuration = schedule.duration; // Fallback to user-set duration
+        try {
+          const thresholds = device.customThresholds || 
+            WateringDecisionEngine.calculateThresholdsFromSettings(device);
+          const estimatedMoisture = 25; // Conservative mid-range estimate
+          smartDuration = WateringDecisionEngine.calculateSmartDuration(
+            device, 
+            estimatedMoisture, 
+            thresholds
+          );
+          console.log(`🧠 Smart duration for schedule: ${smartDuration}s (soil: ${device.soilType}, stage: ${device.growthStage})`);
+          console.log(`   User originally set: ${schedule.duration}s`);
+        } catch (err) {
+          console.warn(`⚠️ Failed to calculate smart duration, using user-set: ${err.message}`);
+        }
         
         // Create device command record
         const command = new DeviceCommand({
@@ -526,7 +553,7 @@ exports.upsertSchedule = async (req, res) => {
             dayOfWeek: esp32DayOfWeek,  // ESP32 expects 1-7 (Mon-Sun)
             hour: hour,
             minute: minute,
-            duration: schedule.duration,
+            duration: smartDuration,  // 🧠 Use smart duration!
             active: schedule.isActive  // 🚨 FIX: ESP32 expects "active" not "isActive"
           },
           status: 'pending',
@@ -543,14 +570,14 @@ exports.upsertSchedule = async (req, res) => {
             dayOfWeek: esp32DayOfWeek,  // ESP32 expects 1-7 (Mon-Sun)
             hour: hour,
             minute: minute,
-            duration: schedule.duration,
+            duration: smartDuration,  // 🧠 Use smart duration!
             active: schedule.isActive  // 🚨 FIX: ESP32 expects "active" not "isActive"
           },
           messageId: command._id.toString(),
           timestamp: Date.now()
         });
         
-        console.log(`📤 Publishing ADD_SCHEDULE for day ${esp32DayOfWeek}: ${mqttPayload}`);
+        console.log(`📤 Publishing ADD_SCHEDULE for day ${esp32DayOfWeek} with smart duration ${smartDuration}s: ${mqttPayload}`);
         
         // Wait for MQTT publish to complete before sending next one
         await new Promise((resolve) => {
