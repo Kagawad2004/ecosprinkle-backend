@@ -106,13 +106,13 @@ class MQTTManager {
             this.reconnectAttempts = 0;
             
             // Subscribe to ESP32 sensor data with WILDCARD pattern to match ANY device ID
-            // ESP32 publishes to: Ecosprinkle/esp32-3c8a1f7f442c/sensors/data
+            // ESP32 publishes to: ecosprinkle/{deviceId}/sensor (lowercase, no 's' in sensor)
             // Wildcard (+) matches any device ID
-            this.client.subscribe('Ecosprinkle/+/sensors/data', { qos: 1 }, (err) => {
+            this.client.subscribe('ecosprinkle/+/sensor', { qos: 1 }, (err) => {
                 if (err) {
-                    console.error('❌ Subscription error for sensors/data:', err);
+                    console.error('❌ Subscription error for sensor data:', err);
                 } else {
-                    console.log('✅ Subscribed to: Ecosprinkle/+/sensors/data (all devices)');
+                    console.log('✅ Subscribed to: ecosprinkle/+/sensor (all devices)');
                 }
             });
             
@@ -174,12 +174,12 @@ class MQTTManager {
     async handleMessage(topic, payload) {
         console.log('📨 Cloud MQTT Message:', topic, payload.toString());
         
-        // Extract device ID from topic: Ecosprinkle/esp32-3c8a1f7f442c/sensors/data
+        // Extract device ID from topic: ecosprinkle/{deviceId}/sensor
         const topicParts = topic.split('/');
         const deviceId = topicParts[1]; // Get device ID from topic
         
-        // Handle sensor data messages (Ecosprinkle/+/sensors/data)
-        if (topic.includes('/sensors/data')) {
+        // Handle sensor data messages (ecosprinkle/+/sensor)
+        if (topic.includes('/sensor')) {
             const rawData = JSON.parse(payload.toString());
             
             // Use synchronized sensor algorithm service
@@ -216,6 +216,27 @@ class MQTTManager {
                 console.error('❌ Database storage failed:', dbError.message);
                 console.error('❌ Error details:', dbError);
                 // Continue operation even if database fails
+            }
+            
+            // 🤖 AUTOMATIC WATERING DECISION ENGINE
+            // Process sensor data and decide if watering is needed (AUTO mode only)
+            try {
+                const WateringDecisionEngine = require('./services/wateringDecisionEngine');
+                const wateringEngine = new WateringDecisionEngine();
+                wateringEngine.setMqttClient(this.client); // Pass MQTT client for sending commands
+                
+                // Convert processed data to format expected by decision engine
+                const sensorDataForEngine = {
+                    zone1: rawData.zone1,
+                    zone2: rawData.zone2,
+                    zone3: rawData.zone3,
+                    timestamp: rawData.timestamp
+                };
+                
+                await wateringEngine.processSensorData(deviceId, sensorDataForEngine);
+                console.log('🤖 Watering decision engine processed');
+            } catch (wateringError) {
+                console.error('❌ Watering decision engine failed:', wateringError.message);
             }
             
             // Emit to WebSocket clients for real-time updates (with error handling)
