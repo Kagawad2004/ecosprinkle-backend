@@ -221,8 +221,7 @@ class MQTTManager {
             // 🤖 AUTOMATIC WATERING DECISION ENGINE
             // Process sensor data and decide if watering is needed (AUTO mode only)
             try {
-                const WateringDecisionEngine = require('./services/wateringDecisionEngine');
-                const wateringEngine = new WateringDecisionEngine();
+                const wateringEngine = require('./services/wateringDecisionEngine');
                 wateringEngine.setMqttClient(this.client); // Pass MQTT client for sending commands
                 
                 // Convert processed data to format expected by decision engine

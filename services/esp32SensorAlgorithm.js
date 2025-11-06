@@ -166,10 +166,10 @@ function processSensorData(rawData) {
         ? validADCs[Math.floor(validADCs.length / 2)]
         : 0;
     
-    // Determine sensor health
-    const sensorHealth = validSensors === 3 ? 'GOOD' :
-                        validSensors === 2 ? 'DEGRADED' :
-                        validSensors === 1 ? 'POOR' : 'FAILED';
+    // Determine sensor health (match SensorData schema enum values)
+    const sensorHealth = validSensors === 3 ? 'normal' :
+                        validSensors === 2 ? 'degraded' :
+                        validSensors === 1 ? 'warning' : 'error';
 
     // Voting results
     const votingResults = {
