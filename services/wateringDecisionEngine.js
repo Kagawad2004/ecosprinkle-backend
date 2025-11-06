@@ -25,16 +25,19 @@ class WateringDecisionEngine {
 
   /**
    * Calculate moisture percentage from raw ADC using zone-specific calibration
+   * CAPACITIVE SENSORS: LOW ADC = DRY, HIGH ADC = WET
    */
   calculateMoisturePercent(adc, zoneCalibration) {
-    const { wet, dry } = zoneCalibration;
+    const { dry, wet } = zoneCalibration; // Note: 'dry' has lower ADC value
     
     // Clamp ADC to calibration range
-    if (adc < wet) adc = wet;
-    if (adc > dry) adc = dry;
+    if (adc < dry) adc = dry;   // Below dry threshold
+    if (adc > wet) adc = wet;   // Above wet threshold
     
-    // Calculate percentage (higher % = wetter)
-    const percent = Math.round(100 - ((adc - wet) / (dry - wet)) * 100);
+    // Calculate percentage: Higher ADC = Higher moisture %
+    // DRY (1050 ADC) → 0%
+    // WET (4095 ADC) → 100%
+    const percent = Math.round(((adc - dry) / (wet - dry)) * 100);
     return percent;
   }
 
@@ -47,12 +50,13 @@ class WateringDecisionEngine {
 
   /**
    * Get default calibration values for a zone
+   * CAPACITIVE SENSORS: LOW ADC = DRY, HIGH ADC = WET
    */
   getDefaultCalibration() {
     return {
-      zone1: { wet: 1050, dry: 4095 }, // Leafy vegetables
-      zone2: { wet: 1070, dry: 4095 }, // Tomatoes
-      zone3: { wet: 1150, dry: 4095 }  // Root vegetables
+      zone1: { dry: 1050, wet: 4095 }, // Leafy vegetables (dry=low ADC, wet=high ADC)
+      zone2: { dry: 1070, wet: 4095 }, // Tomatoes
+      zone3: { dry: 1150, wet: 4095 }  // Root vegetables
     };
   }
 
