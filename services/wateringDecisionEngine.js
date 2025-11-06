@@ -49,6 +49,58 @@ class WateringDecisionEngine {
   }
 
   /**
+   * SMART DURATION CALCULATION
+   * Calculate optimal watering duration based on:
+   * - Soil dryness level
+   * - Soil type (drainage characteristics)
+   * - Plant growth stage (water needs)
+   */
+  calculateSmartDuration(device, avgMoisturePercent, thresholds) {
+    // Base duration for slightly dry soil (30 seconds)
+    const baseDuration = 30;
+    
+    // 1. How dry is the soil? (more dry = more water needed)
+    const dryness = Math.max(0, thresholds.dry - avgMoisturePercent);
+    const drynessMultiplier = 1 + (dryness / 20); // +5% per 1% dryness
+    
+    // 2. Soil type adjustment (drainage characteristics)
+    const soilMultipliers = {
+      'Sandy': 1.3,        // Drains fast, needs more water
+      'Loamy': 1.0,        // Balanced, standard amount
+      'Clay': 0.7,         // Holds water well, needs less
+      'Potting Mix': 1.1   // Light mix, needs slightly more
+    };
+    const soilMultiplier = soilMultipliers[device.soilType] || 1.0;
+    
+    // 3. Growth stage adjustment (plant size and water needs)
+    const stageMultipliers = {
+      'Seedling': 0.7,     // Small roots, gentle watering
+      'Vegetative': 1.0,   // Active growth, standard amount
+      'Mature': 1.3,       // Large plant, more water needed
+      'Harvest': 1.2       // Maintaining size and fruit production
+    };
+    const stageMultiplier = stageMultipliers[device.growthStage] || 1.0;
+    
+    // Calculate final duration
+    const calculatedDuration = Math.round(
+      baseDuration * drynessMultiplier * soilMultiplier * stageMultiplier
+    );
+    
+    // Safety limits: minimum 15s, maximum 300s (5 minutes)
+    const finalDuration = Math.max(15, Math.min(300, calculatedDuration));
+    
+    // Log calculation details for transparency
+    console.log(`   Smart Duration Calculation:`);
+    console.log(`   Base duration: ${baseDuration}s`);
+    console.log(`   Dryness: ${dryness.toFixed(1)}% below threshold → ×${drynessMultiplier.toFixed(2)}`);
+    console.log(`   Soil type: ${device.soilType || 'Unknown'} → ×${soilMultiplier.toFixed(2)}`);
+    console.log(`   Growth stage: ${device.growthStage || 'Unknown'} → ×${stageMultiplier.toFixed(2)}`);
+    console.log(`   Calculated: ${calculatedDuration}s → Final: ${finalDuration}s (safety limits applied)`);
+    
+    return finalDuration;
+  }
+
+  /**
    * Calculate thresholds from device settings (Soil + Sun + Growth Stage)
    * Based on threshold table for Leafy Vegetables
    */
@@ -174,6 +226,9 @@ class WateringDecisionEngine {
         device.isPumpOn = actualPumpState; // Update local reference
       }
 
+      // Calculate average moisture percentage for smart duration
+      const avgMoisturePercent = Math.round((zone1Percent + zone2Percent + zone3Percent) / 3);
+
       console.log(`\n📊 Device ${deviceId} Analysis:`);
       console.log(`   Plant Type: ${device.plantType}`);
       console.log(`   Soil Type: ${device.soilType || 'Not set'}`);
@@ -183,6 +238,7 @@ class WateringDecisionEngine {
       console.log(`   Zone 1: ${zone1Percent}% [ADC: ${sensorData.zone1}]`);
       console.log(`   Zone 2: ${zone2Percent}% [ADC: ${sensorData.zone2}]`);
       console.log(`   Zone 3: ${zone3Percent}% [ADC: ${sensorData.zone3}]`);
+      console.log(`   Average moisture: ${avgMoisturePercent}%`);
       console.log(`   Dry threshold: ${thresholds.dry}%`);
       console.log(`   Wet threshold: ${thresholds.wet}%`);
       console.log(`   Votes: Dry=${dryVotes}, Wet=${wetVotes}`);
@@ -194,8 +250,11 @@ class WateringDecisionEngine {
       if (device.wateringMode === 'auto') {
         console.log(`✅ AUTO mode detected - evaluating pump control...`);
         if (shouldWater && !actualPumpState) {  // ← Use ACTUAL pump state from ESP32!
+          // 🧠 Calculate smart duration based on soil conditions
+          const smartDuration = this.calculateSmartDuration(device, avgMoisturePercent, thresholds);
+          
           console.log(`💧 TRIGGERING PUMP ON: ${dryVotes}/3 zones dry`);
-          await this.sendPumpCommand(deviceId, 'PUMP_ON', 60, 
+          await this.sendPumpCommand(deviceId, 'PUMP_ON', smartDuration, 
             `${dryVotes}/3 zones below ${thresholds.dry}% threshold`);
         } else if (shouldStop && actualPumpState) {  // ← Use ACTUAL pump state
           console.log(`🛑 TRIGGERING PUMP OFF: ${wetVotes}/3 zones wet`);
