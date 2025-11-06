@@ -9,6 +9,29 @@ const watchdogService = require('../services/watchdogService');
 // Apply input sanitization to all routes
 router.use(sanitizeInput);
 
+/**
+ * Normalize device ID to handle various formats:
+ * - "esp32-bcddc2cdbb40" → "cdbb40" (strip prefix, take last 6)
+ * - "bcddc2cdbb40" → "cdbb40" (take last 6)
+ * - "cdbb40" → "cdbb40" (already normalized)
+ * - "ESP32-BCDDC2CDBB40" → "cdbb40" (lowercase and normalize)
+ */
+function normalizeDeviceId(deviceId) {
+  if (!deviceId) return null;
+  
+  // Convert to lowercase and remove common prefixes
+  let normalized = deviceId.toLowerCase()
+    .replace(/^esp32-/, '')  // Remove "esp32-" prefix
+    .replace(/^ecosprinkle-/, ''); // Remove "ecosprinkle-" prefix
+  
+  // If longer than 6 chars, take last 6 (MAC address last 6 chars)
+  if (normalized.length > 6) {
+    normalized = normalized.slice(-6);
+  }
+  
+  return normalized;
+}
+
 // POST /api/devices/provision-started - Start watchdog timer when WiFi provisioning completes
 router.post('/provision-started', async (req, res) => {
   try {
@@ -21,8 +44,8 @@ router.post('/provision-started', async (req, res) => {
       });
     }
 
-    // Normalize deviceId to lowercase
-    const normalizedDeviceId = deviceId.toLowerCase();
+    // Normalize deviceId (handles esp32- prefix, different lengths, etc.)
+    const normalizedDeviceId = normalizeDeviceId(deviceId);
 
     // Start watchdog timer for this device
     watchdogService.startTracking(normalizedDeviceId);
@@ -55,10 +78,10 @@ router.post('/:deviceId/reset-wifi', async (req, res) => {
       });
     }
 
-    // Normalize deviceId to lowercase
-    const normalizedDeviceId = deviceId.toLowerCase();
+    // Normalize deviceId (handles esp32- prefix, different formats)
+    const normalizedDeviceId = normalizeDeviceId(deviceId);
 
-    console.log(`🔄 Manual WiFi reset requested for device ${normalizedDeviceId}`);
+    console.log(`🔄 Manual WiFi reset requested for device ${deviceId} → normalized: ${normalizedDeviceId}`);
 
     // Stop watchdog timer if running
     watchdogService.stopTracking(normalizedDeviceId);
@@ -93,8 +116,8 @@ router.post('/register', async (req, res) => {
   try {
     const { userId, deviceId, macAddress, deviceName, plantType, soilType, sunlight, growthStage, minThreshold, maxThreshold, wifiSsid, ipAddress } = req.body;
 
-    // Normalize deviceId to lowercase for consistency
-    const normalizedDeviceId = deviceId?.toLowerCase();
+    // Normalize deviceId (handles esp32- prefix, different formats)
+    const normalizedDeviceId = normalizeDeviceId(deviceId);
 
     // For now, handle both authenticated and non-authenticated requests (development mode)
     // In production, you'd want to enforce authentication
@@ -907,9 +930,12 @@ router.get('/plant-types', authMiddleware, async (req, res) => {
 // POST /api/devices/:deviceId/pump/:action - Manual pump control (override auto mode)
 router.post('/:deviceId/pump/:action', authMiddleware, async (req, res) => {
   try {
-    const normalizedDeviceId = req.params.deviceId?.toLowerCase();
+    // Normalize deviceId (handles esp32- prefix, different formats)
+    const normalizedDeviceId = normalizeDeviceId(req.params.deviceId);
     const { action } = req.params; // 'on' or 'off'
     const { duration = 60 } = req.body;
+
+    console.log(`🚰 Pump control request: ${req.params.deviceId} → normalized: ${normalizedDeviceId}, action: ${action}`);
 
     if (!['on', 'off'].includes(action)) {
       return res.status(400).json({ error: 'Invalid action. Use "on" or "off"' });
@@ -921,8 +947,11 @@ router.post('/:deviceId/pump/:action', authMiddleware, async (req, res) => {
     });
 
     if (!device) {
+      console.log(`❌ Device not found: ${normalizedDeviceId} for user ${req.user.id}`);
       return res.status(404).json({ error: 'Device not found' });
     }
+
+    console.log(`✅ Device found: ${device.deviceId}`)
 
     const wateringEngine = require('../services/wateringDecisionEngine');
     await wateringEngine.sendPumpCommand(
