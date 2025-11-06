@@ -253,10 +253,12 @@ class WateringDecisionEngine {
           console.log(`💧 TRIGGERING PUMP ON: ${dryVotes}/3 zones dry`);
           console.log(`   🎯 AUTO mode: Pump will run until sensors reach ${thresholds.wet}% (wet threshold)`);
           console.log(`   📊 Current avg moisture: ${avgMoisturePercent}% → Target: ${thresholds.wet}%`);
-          // 🎯 AUTO MODE: Send duration=0 to run indefinitely until PUMP_OFF command
-          // Backend will automatically send PUMP_OFF when sensors reach wet threshold
-          await this.sendPumpCommand(deviceId, 'PUMP_ON', 0, 
-            `AUTO: ${dryVotes}/3 zones below ${thresholds.dry}% - Run until ${thresholds.wet}%`);
+          // 🎯 AUTO MODE: Use 7200s (2 hours) as safety timeout
+          // Backend monitors sensors every 10s and sends PUMP_OFF when wet threshold reached
+          // This prevents infinite running if sensors fail or MQTT disconnects
+          const autoModeDuration = 60; // 60 seconds maximum safety limit
+          await this.sendPumpCommand(deviceId, 'PUMP_ON', autoModeDuration, 
+            `AUTO: ${dryVotes}/3 zones below ${thresholds.dry}% - Run until ${thresholds.wet}% (max ${autoModeDuration/60}min)`);
         } else if (shouldStop && actualPumpState) {  // ← Use ACTUAL pump state
           console.log(`🛑 TRIGGERING PUMP OFF: ${wetVotes}/3 zones wet`);
           console.log(`   ✅ Wet threshold ${thresholds.wet}% reached!`);
