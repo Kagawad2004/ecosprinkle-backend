@@ -319,49 +319,6 @@ aedes.on('publish', async function (packet, client) {
       }
     }
 
-    // NEW: MQTT-API Bridge for Irrigation Status and Logging
-    // Handle irrigation status updates from devices
-    if (topic.startsWith('Ecosprinkle/irrigation/')) {
-      const topicParts = topic.split('/');
-      const deviceId = topicParts[2];
-      const eventType = topicParts[3]; // status, command, error
-
-      if (eventType === 'status') {
-        const statusData = JSON.parse(payload);
-        await storeIrrigationStatus(deviceId, statusData);
-        // Emit to WebSocket clients
-        io.to(deviceId).emit('irrigationStatus', { deviceId, ...statusData });
-      }
-    }
-
-    // Handle sensor data logging
-    if (topic.startsWith('Ecosprinkle/sensors/')) {
-      const topicParts = topic.split('/');
-      const deviceId = topicParts[2];
-      const dataType = topicParts[3]; // data, alert, error
-
-      if (dataType === 'data') {
-        const sensorData = JSON.parse(payload);
-        await logSensorData(deviceId, sensorData);
-      } else if (dataType === 'alert') {
-        const alertData = JSON.parse(payload);
-        await logSystemEvent(deviceId, 'alert', alertData);
-      } else if (dataType === 'error') {
-        const errorData = JSON.parse(payload);
-        await logSystemEvent(deviceId, 'error', errorData);
-      }
-    }
-
-    // Handle device command acknowledgments
-    if (topic.startsWith('Ecosprinkle/commands/')) {
-      const topicParts = topic.split('/');
-      const deviceId = topicParts[2];
-      const commandId = topicParts[3];
-
-      const ackData = JSON.parse(payload);
-      await logSystemEvent(deviceId, 'command_ack', { commandId, ...ackData });
-    }
-
     // ============ V2.0 ARCHITECTURE HANDLERS ============
     // Handle sensor data from v2.0 firmware: ecosprinkle/{deviceId}/sensor
     if (topic.match(/^ecosprinkle\/[^\/]+\/sensor$/)) {
@@ -584,47 +541,6 @@ async function storeSensorData(data) {
   }
 }
 
-// NEW: MQTT-API Bridge Functions
-
-// Function to store irrigation status updates
-async function storeIrrigationStatus(deviceId, statusData) {
-  try {
-    const IrrigationStatus = require('./models/IrrigationStatus');
-
-    // Find existing status or create new one
-    let irrigationStatus = await IrrigationStatus.findOne({ deviceId });
-
-    if (!irrigationStatus) {
-      irrigationStatus = new IrrigationStatus({
-        deviceId,
-        moistureLevel: statusData.moistureLevel || 0,
-        irrigationStatus: statusData.irrigationStatus || 'idle',
-        pumpStatus: statusData.pumpStatus || 'OFF',
-        thresholds: statusData.thresholds || { dryThreshold: 1700, wetThreshold: 4000 }
-      });
-    } else {
-      // Update existing status
-      irrigationStatus.moistureLevel = statusData.moistureLevel || irrigationStatus.moistureLevel;
-      irrigationStatus.irrigationStatus = statusData.irrigationStatus || irrigationStatus.irrigationStatus;
-      irrigationStatus.pumpStatus = statusData.pumpStatus || irrigationStatus.pumpStatus;
-      irrigationStatus.lastUpdated = new Date();
-
-      if (statusData.thresholds) {
-        irrigationStatus.thresholds = { ...irrigationStatus.thresholds, ...statusData.thresholds };
-      }
-    }
-
-    await irrigationStatus.save();
-    console.log('💧 Irrigation status updated for device:', deviceId, {
-      moistureLevel: irrigationStatus.moistureLevel,
-      irrigationStatus: irrigationStatus.irrigationStatus,
-      pumpStatus: irrigationStatus.pumpStatus
-    });
-  } catch (error) {
-    console.error('❌ Irrigation status storage error:', error.message);
-  }
-}
-
 // Function to log sensor data
 async function logSensorData(deviceId, sensorData) {
   try {
@@ -749,7 +665,6 @@ app.get('/', (req, res) => {
       status: '/status',
       auth: '/api/auth/*',
       devices: '/api/devices/*',
-      irrigation: '/api/irrigation/*',
       sensors: '/api/sensor/*'
     },
     documentation: 'https://github.com/Kagawad2004/ecosprinkle-backend'
@@ -762,7 +677,6 @@ app.use('/api/auth', authRoutes);
 
 // NEW: Import additional route modules
 const deviceRoutes = require('./routes/devices');
-const irrigationRoutes = require('./routes/irrigation');
 const logRoutes = require('./routes/logs');
 const onboardingRoutes = require('./routes/onboarding');
 const wateringRoutes = require('./routes/watering');
@@ -773,7 +687,6 @@ const wateringRoutes = require('./routes/watering');
 // NEW: Use additional route modules
 app.use('/api/devices', deviceRoutes);
 app.use('/api/devices', wateringRoutes); // Mount watering routes at /api/devices
-app.use('/api/irrigation', irrigationRoutes);
 app.use('/api/logs', logRoutes);
 app.use('/api/onboarding', onboardingRoutes);
 
