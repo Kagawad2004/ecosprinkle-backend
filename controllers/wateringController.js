@@ -502,6 +502,11 @@ exports.upsertSchedule = async (req, res) => {
     device.scheduleMode.isEnabled = true;
     device.LastUpdated = new Date();
 
+    // ⚠️ DISABLED: ADD_SCHEDULE commands no longer needed
+    // Schedule Executor service now handles all schedule timing and sends PUMP_ON directly
+    // ESP32 no longer needs to store schedules - backend controls everything
+    
+    /* COMMENTED OUT - Using Schedule Executor instead
     const client = initMQTTClient();
     const mqttTopic = `Ecosprinkle/${deviceId}/commands/control`;
     
@@ -608,17 +613,29 @@ exports.upsertSchedule = async (req, res) => {
     // before receiving SET_WATERING_MODE command
     console.log('⏳ Waiting 500ms for ESP32 to process schedules...');
     await new Promise(resolve => setTimeout(resolve, 500));
+    */ // END OF COMMENTED CODE
+    
+    // ✅ SCHEDULE EXECUTOR ACTIVE: Backend handles all timing
+    console.log(`📅 Schedule saved! Executor will trigger ${device.schedules.length} schedules`);
+    
+    // Send CLEAR_ALL_SCHEDULES to ESP32 to remove any old internal schedules
+    const client = initMQTTClient();
+    const clearPayload = JSON.stringify({
+      command: 'CLEAR_ALL_SCHEDULES',
+      timestamp: Date.now()
+    });
+    client.publish(`ecosprinkle/${deviceId}/command`, clearPayload, { qos: 1 });
     
     await device.save();
 
     res.json({
       success: true,
-      message: 'Schedules updated successfully',
+      message: 'Schedules updated successfully - Schedule Executor will handle timing',
       data: {
         deviceId,
         schedules: device.schedules,
         nextScheduledAt: device.scheduleMode.nextScheduledAt,
-        mqttCommandsSent: totalCommands
+        executionMode: 'schedule_executor'
       }
     });
 
