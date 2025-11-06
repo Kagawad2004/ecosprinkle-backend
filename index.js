@@ -134,6 +134,9 @@ mqttServer.on('connection', (socket) => {
 
 let mqttClient = null;
 
+// Import watering decision engine
+const wateringEngine = require('./services/wateringDecisionEngine');
+
 mqttServer.listen(mqttPort, '0.0.0.0', function () {
   console.log(`MQTT Broker running on port ${mqttPort} (all interfaces)`);
   console.log(`MQTT Broker address: ${mqttServer.address().address}:${mqttServer.address().port}`);
@@ -146,6 +149,10 @@ mqttServer.listen(mqttPort, '0.0.0.0', function () {
     
     mqttClient.on('connect', () => {
       console.log('Backend MQTT client connected to internal broker');
+      
+      // Set MQTT client in watering engine for sending commands
+      wateringEngine.setMqttClient(mqttClient);
+      console.log('✅ Watering Decision Engine initialized');
     });
     
     mqttClient.on('error', (error) => {
@@ -353,6 +360,62 @@ aedes.on('publish', async function (packet, client) {
 
       const ackData = JSON.parse(payload);
       await logSystemEvent(deviceId, 'command_ack', { commandId, ...ackData });
+    }
+
+    // ============ V2.0 ARCHITECTURE HANDLERS ============
+    // Handle sensor data from v2.0 firmware: ecosprinkle/{deviceId}/sensor
+    if (topic.match(/^ecosprinkle\/[^\/]+\/sensor$/)) {
+      const topicParts = topic.split('/');
+      const deviceId = topicParts[1];
+      const sensorData = JSON.parse(payload);
+      
+      console.log(`📥 V2.0: Received sensor data from ${deviceId}`);
+      
+      // Let decision engine handle all logic
+      await wateringEngine.processSensorData(deviceId, sensorData);
+    }
+    // Handle command acknowledgments from v2.0 firmware: ecosprinkle/{deviceId}/ack
+    else if (topic.match(/^ecosprinkle\/[^\/]+\/ack$/)) {
+      const topicParts = topic.split('/');
+      const deviceId = topicParts[1];
+      const ack = JSON.parse(payload);
+      
+      console.log(`✅ V2.0: Command ${ack.commandId} acknowledged: ${ack.status}`);
+      
+      // Update device state
+      const Device = require('./models/Device');
+      await Device.findOneAndUpdate(
+        { deviceId },
+        { 
+          isPumpOn: ack.pumpState,
+          lastAck: new Date(),
+          lastAckMessage: ack.message
+        }
+      );
+    }
+    // Handle device status updates from v2.0 firmware: ecosprinkle/{deviceId}/status
+    else if (topic.match(/^ecosprinkle\/[^\/]+\/status$/)) {
+      const topicParts = topic.split('/');
+      const deviceId = topicParts[1];
+      const status = JSON.parse(payload);
+      
+      console.log(`📡 V2.0: Device ${deviceId} status: ${status.online ? 'ONLINE' : 'OFFLINE'}`);
+      
+      const Device = require('./models/Device');
+      await Device.findOneAndUpdate(
+        { deviceId },
+        { 
+          isOnline: status.online,
+          lastSeen: new Date()
+        }
+      );
+      
+      // Send config when device comes online
+      if (status.online) {
+        setTimeout(() => {
+          wateringEngine.sendDeviceConfig(deviceId);
+        }, 2000); // Wait 2 seconds for device to be ready
+      }
     }
 
   } catch (error) {

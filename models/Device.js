@@ -406,6 +406,76 @@ const deviceSchema = new mongoose.Schema({
       type: Date,
       default: Date.now
     }
+  },
+
+  // ============ V2.0 ARCHITECTURE FIELDS ============
+  // Custom thresholds override plant type defaults
+  customThresholds: {
+    type: {
+      dry: { type: Number, min: 0, max: 100 },
+      wet: { type: Number, min: 0, max: 100 }
+    },
+    required: false,
+    default: null // null means use plant type defaults
+  },
+  
+  // Custom calibration override defaults
+  calibration: {
+    type: {
+      zone1: { wet: Number, dry: Number },
+      zone2: { wet: Number, dry: Number },
+      zone3: { wet: Number, dry: Number }
+    },
+    required: false,
+    default: null // null means use defaults
+  },
+  
+  // Pump state tracking
+  isPumpOn: {
+    type: Boolean,
+    default: false
+  },
+  
+  // Last command sent to device
+  lastCommand: {
+    type: String,
+    default: null
+  },
+  
+  // When last command was sent
+  lastCommandTime: {
+    type: Date,
+    default: null
+  },
+  
+  // Last acknowledgment from device
+  lastAck: {
+    type: Date,
+    default: null
+  },
+  
+  // Acknowledgment message
+  lastAckMessage: {
+    type: String,
+    default: null
+  },
+  
+  // Device online status
+  isOnline: {
+    type: Boolean,
+    default: false
+  },
+  
+  // Last seen timestamp
+  lastSeen: {
+    type: Date,
+    default: null
+  },
+  
+  // Firmware version
+  firmwareVersion: {
+    type: String,
+    default: '1.0'
   }
 });
 

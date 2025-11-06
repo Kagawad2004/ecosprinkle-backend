@@ -605,8 +605,13 @@ router.get('/:deviceId/sensor-data/latest', async (req, res) => {
         zone1: latestData.zone1,
         zone2: latestData.zone2,
         zone3: latestData.zone3,
+        zone1Percent: latestData.zone1Percent,
+        zone2Percent: latestData.zone2Percent,
+        zone3Percent: latestData.zone3Percent,
         moisture: latestData.zone1, // Default to zone1 for backward compatibility
         median: latestData.median,
+        majorityVoteDry: latestData.majorityVoteDry,
+        validSensors: latestData.validSensors,
         timestamp: latestData.timestamp,
         createdAt: latestData.createdAt
       }
@@ -711,6 +716,152 @@ router.get('/watchdog/status', async (req, res) => {
       error: 'Failed to get watchdog status',
       details: error.message
     });
+  }
+});
+
+// ============ V2.0 ARCHITECTURE API ROUTES ============
+
+// GET /api/devices/:deviceId/settings - Get device settings (thresholds, calibration, mode)
+router.get('/:deviceId/settings', authMiddleware, async (req, res) => {
+  try {
+    const normalizedDeviceId = req.params.deviceId?.toLowerCase();
+    
+    const device = await Device.findOne({ 
+      deviceId: normalizedDeviceId,
+      userID: req.user.id 
+    });
+
+    if (!device) {
+      return res.status(404).json({ error: 'Device not found' });
+    }
+
+    const wateringEngine = require('../services/wateringDecisionEngine');
+    const defaultThresholds = wateringEngine.getThresholdsForPlant(device.plantType);
+    const defaultCalibration = wateringEngine.getDefaultCalibration();
+
+    res.json({
+      success: true,
+      settings: {
+        plantType: device.plantType,
+        customThresholds: device.customThresholds,
+        defaultThresholds: defaultThresholds,
+        calibration: device.calibration || defaultCalibration,
+        wateringMode: device.wateringMode,
+        isPumpOn: device.isPumpOn,
+        lastCommand: device.lastCommand,
+        lastCommandTime: device.lastCommandTime
+      }
+    });
+  } catch (error) {
+    console.error('Get device settings error:', error);
+    res.status(500).json({ error: 'Failed to get device settings' });
+  }
+});
+
+// PUT /api/devices/:deviceId/settings - Update device settings
+router.put('/:deviceId/settings', authMiddleware, async (req, res) => {
+  try {
+    const normalizedDeviceId = req.params.deviceId?.toLowerCase();
+    const { plantType, customThresholds, wateringMode, calibration } = req.body;
+
+    // Validate thresholds
+    if (customThresholds) {
+      if (customThresholds.dry < 0 || customThresholds.dry > 100 ||
+          customThresholds.wet < 0 || customThresholds.wet > 100) {
+        return res.status(400).json({ error: 'Thresholds must be between 0 and 100' });
+      }
+      if (customThresholds.dry >= customThresholds.wet) {
+        return res.status(400).json({ error: 'Dry threshold must be less than wet threshold' });
+      }
+    }
+
+    // Update device in database
+    const device = await Device.findOneAndUpdate(
+      { deviceId: normalizedDeviceId, userID: req.user.id },
+      {
+        plantType,
+        customThresholds,
+        wateringMode,
+        calibration
+      },
+      { new: true }
+    );
+
+    if (!device) {
+      return res.status(404).json({ error: 'Device not found' });
+    }
+
+    // Send updated config to ESP32 via MQTT
+    const wateringEngine = require('../services/wateringDecisionEngine');
+    await wateringEngine.sendDeviceConfig(normalizedDeviceId);
+
+    console.log(`✅ Updated settings for device ${normalizedDeviceId}`);
+
+    res.json({
+      success: true,
+      message: 'Settings updated and sent to device',
+      device: {
+        plantType: device.plantType,
+        customThresholds: device.customThresholds,
+        wateringMode: device.wateringMode,
+        calibration: device.calibration
+      }
+    });
+  } catch (error) {
+    console.error('Update device settings error:', error);
+    res.status(500).json({ error: 'Failed to update device settings' });
+  }
+});
+
+// GET /api/devices/plant-types - Get available plant types and their thresholds
+router.get('/plant-types', authMiddleware, async (req, res) => {
+  try {
+    const wateringEngine = require('../services/wateringDecisionEngine');
+    res.json({
+      success: true,
+      plantTypes: wateringEngine.plantThresholds
+    });
+  } catch (error) {
+    console.error('Get plant types error:', error);
+    res.status(500).json({ error: 'Failed to get plant types' });
+  }
+});
+
+// POST /api/devices/:deviceId/pump/:action - Manual pump control (override auto mode)
+router.post('/:deviceId/pump/:action', authMiddleware, async (req, res) => {
+  try {
+    const normalizedDeviceId = req.params.deviceId?.toLowerCase();
+    const { action } = req.params; // 'on' or 'off'
+    const { duration = 60 } = req.body;
+
+    if (!['on', 'off'].includes(action)) {
+      return res.status(400).json({ error: 'Invalid action. Use "on" or "off"' });
+    }
+
+    const device = await Device.findOne({ 
+      deviceId: normalizedDeviceId,
+      userID: req.user.id 
+    });
+
+    if (!device) {
+      return res.status(404).json({ error: 'Device not found' });
+    }
+
+    const wateringEngine = require('../services/wateringDecisionEngine');
+    await wateringEngine.sendPumpCommand(
+      normalizedDeviceId,
+      action === 'on' ? 'PUMP_ON' : 'PUMP_OFF',
+      duration,
+      'Manual user control'
+    );
+
+    res.json({
+      success: true,
+      message: `Pump ${action} command sent`
+    });
+  } catch (error) {
+    console.error('Manual pump control error:', error);
+    res.status(500).json({ error: 'Failed to control pump' });
   }
 });
 
