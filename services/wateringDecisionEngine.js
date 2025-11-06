@@ -235,14 +235,13 @@ class WateringDecisionEngine {
       console.log(`   Sun Exposure: ${device.sunlightExposure || device.sunlight || 'Not set'}`);
       console.log(`   Growth Stage: ${device.growthStage || device.GrowthStage || 'Not set'}`);
       console.log(`   Mode: ${device.wateringMode}`);
-      console.log(`   Zone 1: ${zone1Percent}% [ADC: ${sensorData.zone1}]`);
-      console.log(`   Zone 2: ${zone2Percent}% [ADC: ${sensorData.zone2}]`);
-      console.log(`   Zone 3: ${zone3Percent}% [ADC: ${sensorData.zone3}]`);
+      console.log(`   Zone 1: ${zone1Percent}% [ADC: ${sensorData.zone1}] ${zone1Percent < thresholds.dry ? '🔴 DRY' : zone1Percent > thresholds.wet ? '🟢 WET' : '🟡 OK'}`);
+      console.log(`   Zone 2: ${zone2Percent}% [ADC: ${sensorData.zone2}] ${zone2Percent < thresholds.dry ? '🔴 DRY' : zone2Percent > thresholds.wet ? '🟢 WET' : '🟡 OK'}`);
+      console.log(`   Zone 3: ${zone3Percent}% [ADC: ${sensorData.zone3}] ${zone3Percent < thresholds.dry ? '🔴 DRY' : zone3Percent > thresholds.wet ? '🟢 WET' : '🟡 OK'}`);
       console.log(`   Average moisture: ${avgMoisturePercent}%`);
-      console.log(`   Dry threshold: ${thresholds.dry}%`);
-      console.log(`   Wet threshold: ${thresholds.wet}%`);
-      console.log(`   Votes: Dry=${dryVotes}, Wet=${wetVotes}`);
-      console.log(`   Decision: Should water = ${shouldWater}`);
+      console.log(`   Thresholds: Dry < ${thresholds.dry}% | Wet > ${thresholds.wet}%`);
+      console.log(`   Votes: Dry=${dryVotes}/3, Wet=${wetVotes}/3`);
+      console.log(`   Decision: Should water = ${shouldWater}, Should stop = ${shouldStop}`);
       console.log(`   Pump state (ESP32): ${actualPumpState ? 'ON' : 'OFF'}`);
       console.log(`   Pump state (DB): ${device.isPumpOn ? 'ON' : 'OFF'}`);
 
@@ -256,9 +255,9 @@ class WateringDecisionEngine {
           // 🎯 AUTO MODE: Use 7200s (2 hours) as safety timeout
           // Backend monitors sensors every 10s and sends PUMP_OFF when wet threshold reached
           // This prevents infinite running if sensors fail or MQTT disconnects
-          const autoModeDuration = 60; // 60 seconds maximum safety limit
+          const autoModeDuration = 7200; // 2 hours safety maximum
           await this.sendPumpCommand(deviceId, 'PUMP_ON', autoModeDuration, 
-            `AUTO: ${dryVotes}/3 zones below ${thresholds.dry}% - Run until ${thresholds.wet}% (max ${autoModeDuration/60}min)`);
+            `AUTO: ${dryVotes}/3 zones below ${thresholds.dry}% - Run until ${thresholds.wet}%`);
         } else if (shouldStop && actualPumpState) {  // ← Use ACTUAL pump state
           console.log(`🛑 TRIGGERING PUMP OFF: ${wetVotes}/3 zones wet`);
           console.log(`   ✅ Wet threshold ${thresholds.wet}% reached!`);

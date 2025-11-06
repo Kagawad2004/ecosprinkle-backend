@@ -829,7 +829,7 @@ router.get('/:deviceId/settings', authMiddleware, async (req, res) => {
     
     const device = await Device.findOne({ 
       deviceId: normalizedDeviceId,
-      userID: req.user.id 
+      userID: req.user.userId 
     });
 
     if (!device) {
@@ -878,7 +878,7 @@ router.put('/:deviceId/settings', authMiddleware, async (req, res) => {
 
     // Update device in database
     const device = await Device.findOneAndUpdate(
-      { deviceId: normalizedDeviceId, userID: req.user.id },
+      { deviceId: normalizedDeviceId, userID: req.user.userId },
       {
         plantType,
         customThresholds,
@@ -944,11 +944,11 @@ router.post('/:deviceId/pump/:action', authMiddleware, async (req, res) => {
 
     const device = await Device.findOne({ 
       deviceId: normalizedDeviceId,
-      userID: req.user.id 
+      userID: req.user.userId 
     });
 
     if (!device) {
-      console.log(`❌ Device not found: ${normalizedDeviceId} for user ${req.user.id}`);
+      console.log(`❌ Device not found: ${normalizedDeviceId} for user ${req.user.userId}`);
       return res.status(404).json({ error: 'Device not found' });
     }
 
@@ -983,11 +983,11 @@ router.post('/:deviceId/pump/test', authMiddleware, async (req, res) => {
 
     const device = await Device.findOne({ 
       deviceId: normalizedDeviceId,
-      userID: req.user.id 
+      userID: req.user.userId 
     });
 
     if (!device) {
-      console.log(`❌ Device not found: ${normalizedDeviceId} for user ${req.user.id}`);
+      console.log(`❌ Device not found: ${normalizedDeviceId} for user ${req.user.userId}`);
       return res.status(404).json({ error: 'Device not found' });
     }
 

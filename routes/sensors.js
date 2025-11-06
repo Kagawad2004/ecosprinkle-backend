@@ -73,7 +73,7 @@ router.get('/sensor/:deviceId/history', authMiddleware, async (req, res) => {
     // Build query with user ID for security
     const query = { 
       deviceId, 
-      userID: req.user.id // Ensure user can only access their own data
+      userID: req.user.userId // Ensure user can only access their own data (fixed: was req.user.id)
     };
     
     // Add date range filter if provided
@@ -195,7 +195,7 @@ router.get('/sensor/:deviceId/stats', authMiddleware, async (req, res) => {
     
     const query = { 
       deviceId,
-      userID: req.user.id
+      userID: req.user.userId
     };
     
     if (start && end) {
