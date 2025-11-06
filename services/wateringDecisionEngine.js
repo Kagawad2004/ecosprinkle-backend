@@ -49,6 +49,56 @@ class WateringDecisionEngine {
   }
 
   /**
+   * Calculate thresholds from device settings (Soil + Sun + Growth Stage)
+   * Based on threshold table for Leafy Vegetables
+   */
+  calculateThresholdsFromSettings(device) {
+    // Only calculate for Leafy Vegetables, others use customThresholds or defaults
+    if (device.plantType !== 'Leafy Vegetables') {
+      return device.customThresholds || this.getThresholdsForPlant(device.plantType || 'Others');
+    }
+
+    const soilType = device.soilType || 'Loamy';
+    const sunExposure = device.sunlightExposure || device.sunlight || 'Full Sun';
+    const growthStage = device.growthStage || device.GrowthStage || 'Seedling';
+
+    // Threshold table for Leafy Vegetables (from revisions.md)
+    const thresholdTable = {
+      'Sandy': {
+        'Full Sun': { 'Seedling': { dry: 30, wet: 39 }, 'Vegetative': { dry: 27, wet: 37 }, 'Mature': { dry: 25, wet: 35 }, 'Harvest': { dry: 23, wet: 33 } },
+        'Partial Sun': { 'Seedling': { dry: 28, wet: 37 }, 'Vegetative': { dry: 25, wet: 35 }, 'Mature': { dry: 23, wet: 33 }, 'Harvest': { dry: 21, wet: 31 } },
+        'Shade': { 'Seedling': { dry: 26, wet: 35 }, 'Vegetative': { dry: 23, wet: 33 }, 'Mature': { dry: 21, wet: 31 }, 'Harvest': { dry: 19, wet: 29 } }
+      },
+      'Loamy': {
+        'Full Sun': { 'Seedling': { dry: 30, wet: 42 }, 'Vegetative': { dry: 27, wet: 40 }, 'Mature': { dry: 25, wet: 37 }, 'Harvest': { dry: 23, wet: 35 } },
+        'Partial Sun': { 'Seedling': { dry: 28, wet: 40 }, 'Vegetative': { dry: 25, wet: 38 }, 'Mature': { dry: 23, wet: 35 }, 'Harvest': { dry: 21, wet: 33 } },
+        'Shade': { 'Seedling': { dry: 26, wet: 38 }, 'Vegetative': { dry: 23, wet: 36 }, 'Mature': { dry: 21, wet: 33 }, 'Harvest': { dry: 19, wet: 31 } }
+      },
+      'Clay': {
+        'Full Sun': { 'Seedling': { dry: 30, wet: 45 }, 'Vegetative': { dry: 27, wet: 43 }, 'Mature': { dry: 25, wet: 40 }, 'Harvest': { dry: 23, wet: 38 } },
+        'Partial Sun': { 'Seedling': { dry: 28, wet: 43 }, 'Vegetative': { dry: 25, wet: 40 }, 'Mature': { dry: 23, wet: 38 }, 'Harvest': { dry: 21, wet: 36 } },
+        'Shade': { 'Seedling': { dry: 26, wet: 40 }, 'Vegetative': { dry: 23, wet: 38 }, 'Mature': { dry: 21, wet: 35 }, 'Harvest': { dry: 19, wet: 33 } }
+      },
+      'Potting Mix': {
+        'Full Sun': { 'Seedling': { dry: 30, wet: 42 }, 'Vegetative': { dry: 27, wet: 40 }, 'Mature': { dry: 25, wet: 37 }, 'Harvest': { dry: 23, wet: 35 } },
+        'Partial Sun': { 'Seedling': { dry: 28, wet: 40 }, 'Vegetative': { dry: 25, wet: 38 }, 'Mature': { dry: 23, wet: 35 }, 'Harvest': { dry: 21, wet: 33 } },
+        'Shade': { 'Seedling': { dry: 26, wet: 38 }, 'Vegetative': { dry: 23, wet: 36 }, 'Mature': { dry: 21, wet: 33 }, 'Harvest': { dry: 19, wet: 31 } }
+      }
+    };
+
+    // Get thresholds from table
+    const thresholds = thresholdTable[soilType]?.[sunExposure]?.[growthStage];
+    
+    if (!thresholds) {
+      console.log(`⚠️ Threshold not found for: ${soilType}/${sunExposure}/${growthStage}, using defaults`);
+      return this.plantThresholds['Leafy Vegetables'];
+    }
+
+    console.log(`📊 Calculated thresholds: ${soilType}/${sunExposure}/${growthStage} → Dry: ${thresholds.dry}%, Wet: ${thresholds.wet}%`);
+    return thresholds;
+  }
+
+  /**
    * Get default calibration values for a zone
    * RESISTIVE SENSORS: HIGH ADC = DRY, LOW ADC = WET (INVERTED!)
    */
@@ -97,9 +147,9 @@ class WateringDecisionEngine {
       const zone2Percent = this.calculateMoisturePercent(sensorData.zone2, calibration.zone2);
       const zone3Percent = this.calculateMoisturePercent(sensorData.zone3, calibration.zone3);
 
-      // Get thresholds (use custom or from plant type)
+      // Get thresholds (use custom OR calculate from device settings)
       const thresholds = device.customThresholds || 
-        this.getThresholdsForPlant(device.plantType || 'Others');
+        this.calculateThresholdsFromSettings(device);
 
       // Majority voting logic
       const dryVotes = [zone1Percent, zone2Percent, zone3Percent]
@@ -113,6 +163,9 @@ class WateringDecisionEngine {
 
       console.log(`\n📊 Device ${deviceId} Analysis:`);
       console.log(`   Plant Type: ${device.plantType}`);
+      console.log(`   Soil Type: ${device.soilType || 'Not set'}`);
+      console.log(`   Sun Exposure: ${device.sunlightExposure || device.sunlight || 'Not set'}`);
+      console.log(`   Growth Stage: ${device.growthStage || device.GrowthStage || 'Not set'}`);
       console.log(`   Mode: ${device.wateringMode}`);
       console.log(`   Zone 1: ${zone1Percent}% [ADC: ${sensorData.zone1}]`);
       console.log(`   Zone 2: ${zone2Percent}% [ADC: ${sensorData.zone2}]`);
