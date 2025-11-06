@@ -225,13 +225,16 @@ class MQTTManager {
                 wateringEngine.setMqttClient(this.client); // Pass MQTT client for sending commands
                 
                 // Convert processed data to format expected by decision engine
+                // CRITICAL: Include pump state from ESP32 for accurate decision making
                 const sensorDataForEngine = {
                     zone1: rawData.zone1,
                     zone2: rawData.zone2,
                     zone3: rawData.zone3,
+                    pumpState: rawData.pumpState || rawData.pump || false, // Get actual pump state from ESP32
                     timestamp: rawData.timestamp
                 };
                 
+                console.log(`🤖 Calling watering engine with pump state: ${sensorDataForEngine.pumpState}`);
                 await wateringEngine.processSensorData(deviceId, sensorDataForEngine);
                 console.log('🤖 Watering decision engine processed');
             } catch (wateringError) {
