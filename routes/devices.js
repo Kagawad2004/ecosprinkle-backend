@@ -971,4 +971,40 @@ router.post('/:deviceId/pump/:action', authMiddleware, async (req, res) => {
   }
 });
 
+// POST /api/devices/:deviceId/pump/test - Test pump connectivity (5 second burst)
+router.post('/:deviceId/pump/test', authMiddleware, async (req, res) => {
+  try {
+    // Normalize deviceId (handles esp32- prefix, different formats)
+    const normalizedDeviceId = normalizeDeviceId(req.params.deviceId);
+    const { duration = 5 } = req.body; // Default 5 seconds for test
+
+    console.log(`🧪 Test pump request: ${req.params.deviceId} → normalized: ${normalizedDeviceId}`);
+
+    const device = await Device.findOne({ 
+      deviceId: normalizedDeviceId,
+      userID: req.user.id 
+    });
+
+    if (!device) {
+      console.log(`❌ Device not found: ${normalizedDeviceId} for user ${req.user.id}`);
+      return res.status(404).json({ error: 'Device not found' });
+    }
+
+    console.log(`✅ Sending test pump to: ${device.deviceId}`);
+
+    const wateringEngine = require('../services/wateringDecisionEngine');
+    await wateringEngine.sendConnectionTestPump(normalizedDeviceId, duration);
+
+    res.json({
+      success: true,
+      message: `Test pump sent (${duration}s)`,
+      deviceId: normalizedDeviceId,
+      duration: duration
+    });
+  } catch (error) {
+    console.error('Test pump error:', error);
+    res.status(500).json({ error: 'Failed to send test pump' });
+  }
+});
+
 module.exports = router;

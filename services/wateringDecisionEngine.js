@@ -78,6 +78,10 @@ class WateringDecisionEngine {
         console.log(`🐕 Device ${deviceId} found in DB but not confirmed - sending DEVICE_REGISTERED`);
         await this.sendRegistrationConfirmation(deviceId);
         
+        // 🧪 NEW: Send 5-second test pump on first connection to verify hardware
+        console.log(`🧪 Triggering 5-second connection test pump for ${deviceId}`);
+        await this.sendConnectionTestPump(deviceId, 5);
+        
         // Mark as confirmed in database
         await Device.findOneAndUpdate(
           { deviceId },
@@ -190,6 +194,45 @@ class WateringDecisionEngine {
     if (this.mqttClient) {
       this.mqttClient.publish(`ecosprinkle/${deviceId}/command`, JSON.stringify(payload));
     }
+  }
+
+  /**
+   * 🧪 TEST PUMP: Send quick pump test when device first connects
+   * This verifies MQTT connectivity and pump hardware functionality
+   */
+  async sendConnectionTestPump(deviceId, testDuration = 5) {
+    const payload = {
+      command: 'PUMP_ON',
+      duration: testDuration, // Short 5-second test
+      reason: 'Connection test - Verifying MQTT and pump hardware',
+      commandId: `test_${Date.now()}`,
+      timestamp: Math.floor(Date.now() / 1000),
+      isTest: true
+    };
+
+    console.log(`🧪 Sending ${testDuration}s connection test pump to ${deviceId}`);
+    
+    if (this.mqttClient) {
+      this.mqttClient.publish(`ecosprinkle/${deviceId}/command`, JSON.stringify(payload));
+    }
+
+    // Update device state in database
+    await Device.findOneAndUpdate(
+      { deviceId },
+      { 
+        isPumpOn: true,
+        lastCommand: 'PUMP_ON (TEST)',
+        lastCommandTime: new Date()
+      }
+    );
+
+    // Auto turn off after test duration
+    setTimeout(async () => {
+      await Device.findOneAndUpdate(
+        { deviceId },
+        { isPumpOn: false }
+      );
+    }, testDuration * 1000 + 1000); // Add 1 second buffer
   }
 
   /**
