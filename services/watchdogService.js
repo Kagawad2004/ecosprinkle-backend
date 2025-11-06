@@ -15,8 +15,8 @@ class WatchdogService {
     // Map of deviceId -> { timestamp, timeoutId }
     this.trackedDevices = new Map();
     
-    // 5 minutes in milliseconds
-    this.TIMEOUT_MS = 5 * 60 * 1000;
+    // 30 minutes in milliseconds (matches firmware watchdog)
+    this.TIMEOUT_MS = 30 * 60 * 1000;
     
     // MQTT client (will be initialized when needed)
     this.mqttClient = null;
@@ -68,10 +68,12 @@ class WatchdogService {
         return;
       }
 
-      const topic = `Ecosprinkle/${deviceId}/commands/control`;
+      const topic = `ecosprinkle/${deviceId}/command`;
       const payload = JSON.stringify({
-        command: 'CLEAR_WIFI',
-        timestamp: new Date().toISOString()
+        command: 'RESET_WIFI',
+        commandId: `reset-${Date.now()}`,
+        timestamp: new Date().toISOString(),
+        reason: 'Registration timeout - device not saved within 30 minutes'
       });
 
       this.mqttClient.publish(topic, payload, { qos: 1 }, (error) => {
@@ -79,7 +81,37 @@ class WatchdogService {
           console.error(`🐕 Failed to send WiFi reset to ${deviceId}:`, error);
           reject(error);
         } else {
-          console.log(`🐕 WiFi reset command sent to ${deviceId}`);
+          console.log(`🐕 WiFi reset command sent to ${deviceId} via ${topic}`);
+          resolve();
+        }
+      });
+    });
+  }
+
+  /**
+   * Send device registration confirmation via MQTT
+   */
+  sendRegistrationConfirmation(deviceId) {
+    return new Promise((resolve, reject) => {
+      if (!this.mqttClient || !this.mqttClient.connected) {
+        console.error('🐕 MQTT not connected, cannot send registration confirmation');
+        reject(new Error('MQTT not connected'));
+        return;
+      }
+
+      const topic = `ecosprinkle/${deviceId}/command`;
+      const payload = JSON.stringify({
+        command: 'DEVICE_REGISTERED',
+        commandId: `reg-${Date.now()}`,
+        timestamp: new Date().toISOString()
+      });
+
+      this.mqttClient.publish(topic, payload, { qos: 1 }, (error) => {
+        if (error) {
+          console.error(`🐕 Failed to send registration confirmation to ${deviceId}:`, error);
+          reject(error);
+        } else {
+          console.log(`🐕 Registration confirmation sent to ${deviceId}`);
           resolve();
         }
       });
@@ -101,7 +133,7 @@ class WatchdogService {
     
     // Set timeout to trigger WiFi reset
     const timeoutId = setTimeout(() => {
-      console.log(`🐕⏰ TIMEOUT: Device ${deviceId} not registered within 5 minutes`);
+      console.log(`🐕⏰ TIMEOUT: Device ${deviceId} not registered within 30 minutes`);
       console.log(`🐕 Sending WiFi reset command to ${deviceId}...`);
       
       // Send reset command

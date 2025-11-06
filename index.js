@@ -30,6 +30,10 @@ const io = socketIO(server, {
 // Store io instance for use in controllers
 app.set('io', io);
 
+// WiFi Provisioning Watchdog - Tracks devices waiting for registration
+// Maps deviceId → { timestamp, timerId, deviceId }
+const provisioningWatchdogs = new Map();
+
 // Connection Status Verification System
 const connectionStatus = {
   secureCloudBackend: {
