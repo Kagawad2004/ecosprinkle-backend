@@ -17,9 +17,8 @@ const validateEmail = (email) => {
 };
 
 const validatePassword = (password) => {
-  // At least 8 characters, 1 uppercase, 1 lowercase, 1 number
-  const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d@$!%*?&]{8,}$/;
-  return passwordRegex.test(password);
+  // Simple password: at least 4 characters (easy for irrigation app)
+  return password && password.length >= 4;
 };
 
 // Generate tokens
@@ -69,8 +68,8 @@ exports.register = async (req, res) => {
 
     if (!validatePassword(password)) {
       return res.status(400).json({ 
-        error: 'Password does not meet requirements',
-        details: 'Password must be at least 8 characters with uppercase, lowercase, and number'
+        error: 'Password too short',
+        details: 'Password must be at least 4 characters'
       });
     }
 
@@ -393,8 +392,8 @@ exports.resetPassword = async (req, res) => {
 
     if (!validatePassword(newPassword)) {
       return res.status(400).json({ 
-        error: 'Password does not meet requirements',
-        details: 'Password must be at least 8 characters with uppercase, lowercase, and number'
+        error: 'Password too short',
+        details: 'Password must be at least 4 characters'
       });
     }
 
@@ -554,8 +553,8 @@ exports.changePassword = async (req, res) => {
 
     if (!validatePassword(newPassword)) {
       return res.status(400).json({
-        error: 'Password does not meet requirements',
-        details: 'Password must be at least 8 characters with uppercase, lowercase, and number'
+        error: 'Password too short',
+        details: 'Password must be at least 4 characters'
       });
     }
 
