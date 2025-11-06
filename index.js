@@ -4,6 +4,7 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const http = require('http');
 const socketIO = require('socket.io');
+const rateLimit = require('express-rate-limit');
 const aedes = require('aedes')();
 const net = require('net');
 const mqttServer = net.createServer({
@@ -619,6 +620,29 @@ if (process.env.NODE_ENV === 'production' || process.env.RENDER) {
   app.set('trust proxy', 1); // Trust first proxy (Render's load balancer)
   console.log('✅ Trust proxy enabled for production/Render environment');
 }
+
+// General rate limiter for all API routes (very lenient)
+const generalLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000, // 1 minute
+  max: 200, // Allow 200 requests per minute per IP (very generous)
+  message: 'Too many requests from this IP, please try again later',
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => {
+    // Skip for localhost
+    if (req.ip === '127.0.0.1' || req.ip === '::1' || req.ip === 'localhost') {
+      return true;
+    }
+    // Skip for MQTT webhook/callback endpoints
+    if (req.path.includes('/mqtt') || req.path.includes('/webhook')) {
+      return true;
+    }
+    return false;
+  }
+});
+
+// Apply general rate limiter to all API routes
+app.use('/api/', generalLimiter);
 
 // NEW: Passport middleware
 app.use(passport.initialize());
