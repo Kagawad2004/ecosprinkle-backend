@@ -161,6 +161,19 @@ class WateringDecisionEngine {
       const shouldWater = dryVotes >= 2; // 2 or more zones are dry
       const shouldStop = wetVotes >= 2;  // 2 or more zones are wet
 
+      // 🔧 FIX: Use REAL pump state from ESP32, not stale database value
+      const actualPumpState = sensorData.pumpState || false;
+      
+      // Update database if pump state changed
+      if (device.isPumpOn !== actualPumpState) {
+        console.log(`🔄 Syncing pump state: DB=${device.isPumpOn} → ESP32=${actualPumpState}`);
+        await Device.findOneAndUpdate(
+          { deviceId },
+          { isPumpOn: actualPumpState }
+        );
+        device.isPumpOn = actualPumpState; // Update local reference
+      }
+
       console.log(`\n📊 Device ${deviceId} Analysis:`);
       console.log(`   Plant Type: ${device.plantType}`);
       console.log(`   Soil Type: ${device.soilType || 'Not set'}`);
@@ -174,21 +187,22 @@ class WateringDecisionEngine {
       console.log(`   Wet threshold: ${thresholds.wet}%`);
       console.log(`   Votes: Dry=${dryVotes}, Wet=${wetVotes}`);
       console.log(`   Decision: Should water = ${shouldWater}`);
-      console.log(`   Pump state: ${device.isPumpOn ? 'ON' : 'OFF'}`);
+      console.log(`   Pump state (ESP32): ${actualPumpState ? 'ON' : 'OFF'}`);
+      console.log(`   Pump state (DB): ${device.isPumpOn ? 'ON' : 'OFF'}`);
 
       // Only take action in AUTO mode
       if (device.wateringMode === 'auto') {
         console.log(`✅ AUTO mode detected - evaluating pump control...`);
-        if (shouldWater && !device.isPumpOn) {
+        if (shouldWater && !actualPumpState) {  // ← Use ACTUAL pump state from ESP32!
           console.log(`💧 TRIGGERING PUMP ON: ${dryVotes}/3 zones dry`);
           await this.sendPumpCommand(deviceId, 'PUMP_ON', 60, 
             `${dryVotes}/3 zones below ${thresholds.dry}% threshold`);
-        } else if (shouldStop && device.isPumpOn) {
+        } else if (shouldStop && actualPumpState) {  // ← Use ACTUAL pump state
           console.log(`🛑 TRIGGERING PUMP OFF: ${wetVotes}/3 zones wet`);
           await this.sendPumpCommand(deviceId, 'PUMP_OFF', 0, 
             `${wetVotes}/3 zones above ${thresholds.wet}% threshold`);
         } else {
-          console.log(`⏸️ No action: shouldWater=${shouldWater}, isPumpOn=${device.isPumpOn}`);
+          console.log(`⏸️ No action: shouldWater=${shouldWater}, actualPumpState=${actualPumpState}`);
         }
       } else {
         console.log(`⚠️ Skipping pump control - Mode is ${device.wateringMode} (not auto)`);
