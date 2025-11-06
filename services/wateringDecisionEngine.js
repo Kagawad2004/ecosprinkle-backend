@@ -274,10 +274,15 @@ class WateringDecisionEngine {
               `AUTO: ${dryVotes}/3 zones below ${thresholds.dry}% - Run until ${thresholds.wet}%`);
           }
         } else if (shouldStop && actualPumpState) {  // ← Use ACTUAL pump state
-          // Check if we already sent PUMP_OFF recently
+          // PUMP_OFF should override PUMP_ON immediately - only debounce against itself
           if (lastCommand && lastCommand.command === 'PUMP_OFF' && 
               (now - lastCommand.timestamp) < this.COMMAND_DEBOUNCE_MS) {
             console.log(`⏭️ SKIPPING PUMP_OFF: Already sent ${Math.floor((now - lastCommand.timestamp) / 1000)}s ago`);
+          } else if (lastCommand && lastCommand.command === 'PUMP_ON' && 
+                     (now - lastCommand.timestamp) < 5000) {
+            // Safety: Wait at least 5s after PUMP_ON before sending PUMP_OFF
+            // This prevents immediate flip-flop if sensor readings fluctuate
+            console.log(`⏳ WAITING: PUMP_ON sent ${Math.floor((now - lastCommand.timestamp) / 1000)}s ago, waiting 5s minimum`);
           } else {
             console.log(`🛑 TRIGGERING PUMP OFF: ${wetVotes}/3 zones wet`);
             console.log(`   ✅ Wet threshold ${thresholds.wet}% reached!`);
