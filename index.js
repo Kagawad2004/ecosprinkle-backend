@@ -19,6 +19,12 @@ const authMiddleware = require('./middleware/auth');
 // NEW: Import passport configuration
 const passport = require('./config/passport');
 
+// Import shared MQTT client service
+const mqttClientService = require('./services/mqttClient');
+
+// Import watchdog service
+const watchdogService = require('./services/watchdogService');
+
 const app = express();
 
 // Enable trust proxy FIRST (before any middleware that uses req.ip)
@@ -210,11 +216,14 @@ aedes.on('publish', async function (packet, client) {
   const topic = packet.topic;
   const payload = packet.payload.toString();
   
+  // Normalize topic to lowercase for case-insensitive matching
+  const normalizedTopic = topic.toLowerCase();
+  
   console.log('MQTT Message:', topic, payload);
   
   try {
-    // Handle ESP32 direct publish: Ecosprinkle/{deviceId}/sensors/data
-    if (topic.match(/^Ecosprinkle\/[^\/]+\/sensors\/data$/)) {
+    // Handle ESP32 direct publish: Ecosprinkle/{deviceId}/sensors/data OR ecosprinkle/{deviceId}/sensors/data
+    if (normalizedTopic.match(/^ecosprinkle\/[^\/]+\/sensors\/data$/)) {
       const topicParts = topic.split('/');
       let deviceId = topicParts[1]; // Extract deviceId from topic
       const data = JSON.parse(payload);
@@ -294,8 +303,8 @@ aedes.on('publish', async function (packet, client) {
       // Emit to WebSocket clients
       io.to(data.deviceId).emit('sensorData', data);
     }
-    // Legacy format: Ecosprinkle/sensors/data (keep for compatibility)
-    else if (topic === 'Ecosprinkle/sensors/data') {
+    // Legacy format: Ecosprinkle/sensors/data OR ecosprinkle/sensors/data (keep for compatibility)
+    else if (normalizedTopic === 'ecosprinkle/sensors/data') {
       const data = JSON.parse(payload);
       
       // Update connection status - data received
@@ -876,6 +885,23 @@ server.listen(port, '0.0.0.0', () => {
   console.log(`   GET http://localhost:${port}/api/connection-status`);
   console.log(`   GET http://localhost:${port}/api/connection-status/summary`);
   console.log('========================================');
+  
+  // 🔧 CRITICAL: Initialize shared MQTT client early to reduce race window
+  console.log('🔌 Initializing shared MQTT client service...');
+  const cloudBroker = process.env.CLOUD_MQTT_BROKER || 'mqtt://broker.hivemq.com:1883';
+  mqttClientService.initialize(cloudBroker, {
+    clientId: `ecosprinkle_backend_${Date.now()}`,
+    clean: true,
+    reconnectPeriod: 1000,
+    connectTimeout: 30000
+  });
+  
+  // Store MQTT client in app for use by controllers
+  app.set('mqttClient', mqttClientService.getClient());
+  app.set('mqttClientService', mqttClientService);
+  
+  console.log('✅ Shared MQTT client initialized');
+  console.log('✅ Watchdog service ready (using shared MQTT client)');
   
   // Check if secure cloud backend is running
   setTimeout(() => {
