@@ -216,11 +216,16 @@ aedes.on('publish', async function (packet, client) {
     // Handle ESP32 direct publish: Ecosprinkle/{deviceId}/sensors/data
     if (topic.match(/^Ecosprinkle\/[^\/]+\/sensors\/data$/)) {
       const topicParts = topic.split('/');
-      const deviceId = topicParts[1]; // Extract deviceId from topic
+      let deviceId = topicParts[1]; // Extract deviceId from topic
       const data = JSON.parse(payload);
       
-      // Ensure deviceId is in the payload
-      data.deviceId = data.deviceId || deviceId;
+      // 🔧 CRITICAL FIX: Normalize deviceId to match database format (last 6 chars of MAC)
+      // ESP32 might send full MAC or normalized ID, always normalize before DB lookup
+      const { normalizeDeviceId } = require('./routes/devices');
+      const normalizedDeviceId = normalizeDeviceId(deviceId);
+      
+      // Ensure normalized deviceId is in the payload
+      data.deviceId = normalizedDeviceId;
       
       // Update connection status - data received
       connectionStatus.secureCloudBackend.dataReceived = true;
@@ -243,39 +248,40 @@ aedes.on('publish', async function (packet, client) {
       // Auto-register device if not exists
       try {
         const Device = require('./models/Device');
-        let device = await Device.findOne({ deviceId: data.deviceId });
+        // 🔧 CRITICAL FIX: Use normalized device ID for database lookup
+        let device = await Device.findOne({ deviceId: normalizedDeviceId });
         if (!device) {
           // Device not found - could be deleted or never registered
-          console.log(`⚠️ Device ${data.deviceId} not found in database`);
+          console.log(`⚠️ Device ${normalizedDeviceId} (original: ${deviceId}) not found in database`);
           console.log(`📡 Sending DEVICE_DELETED signal to ESP32...`);
           
           // Send deletion notification to ESP32 via MQTT
           const deletionMessage = {
             command: 'DEVICE_DELETED',
-            deviceId: data.deviceId,
+            deviceId: normalizedDeviceId,
             message: 'Device was removed. Please reset to factory settings.',
             timestamp: new Date().toISOString()
           };
           
           mqttClient.publish(
-            `Ecosprinkle/${data.deviceId}/commands/control`,
+            `Ecosprinkle/${normalizedDeviceId}/commands/control`,
             JSON.stringify(deletionMessage),
             { qos: 1, retain: false },
             (err) => {
               if (err) {
                 console.error('❌ Failed to send deletion notification:', err);
               } else {
-                console.log(`✅ Sent DEVICE_DELETED to ${data.deviceId}`);
+                console.log(`✅ Sent DEVICE_DELETED to ${normalizedDeviceId}`);
               }
             }
           );
           
           // DO NOT auto-register - require manual re-registration via app
-          console.log(`🔒 Device ${data.deviceId} must be manually re-registered`);
+          console.log(`🔒 Device ${normalizedDeviceId} must be manually re-registered`);
         } else {
           // Update last seen timestamp
           await Device.updateOne(
-            { deviceId: data.deviceId },
+            { deviceId: normalizedDeviceId },
             { $set: { lastSeen: new Date() } }
           );
         }
@@ -339,8 +345,12 @@ aedes.on('publish', async function (packet, client) {
     // Handle sensor data from v2.0 firmware: ecosprinkle/{deviceId}/sensor
     if (topic.match(/^ecosprinkle\/[^\/]+\/sensor$/)) {
       const topicParts = topic.split('/');
-      const deviceId = topicParts[1];
+      let deviceId = topicParts[1];
       const sensorData = JSON.parse(payload);
+      
+      // 🔧 CRITICAL FIX: Normalize deviceId for database operations
+      const { normalizeDeviceId } = require('./routes/devices');
+      deviceId = normalizeDeviceId(deviceId);
       
       console.log(`📥 V2.0: Received sensor data from ${deviceId}`);
       
@@ -350,8 +360,12 @@ aedes.on('publish', async function (packet, client) {
     // Handle command acknowledgments from v2.0 firmware: ecosprinkle/{deviceId}/ack
     else if (topic.match(/^ecosprinkle\/[^\/]+\/ack$/)) {
       const topicParts = topic.split('/');
-      const deviceId = topicParts[1];
+      let deviceId = topicParts[1];
       const ack = JSON.parse(payload);
+      
+      // 🔧 CRITICAL FIX: Normalize deviceId for database operations
+      const { normalizeDeviceId } = require('./routes/devices');
+      deviceId = normalizeDeviceId(deviceId);
       
       console.log(`✅ V2.0: Command ${ack.commandId} acknowledged: ${ack.status}`);
       
@@ -369,8 +383,12 @@ aedes.on('publish', async function (packet, client) {
     // Handle device status updates from v2.0 firmware: ecosprinkle/{deviceId}/status
     else if (topic.match(/^ecosprinkle\/[^\/]+\/status$/)) {
       const topicParts = topic.split('/');
-      const deviceId = topicParts[1];
+      let deviceId = topicParts[1];
       const status = JSON.parse(payload);
+      
+      // 🔧 CRITICAL FIX: Normalize deviceId for database operations
+      const { normalizeDeviceId } = require('./routes/devices');
+      deviceId = normalizeDeviceId(deviceId);
       
       console.log(`📡 V2.0: Device ${deviceId} status: ${status.online ? 'ONLINE' : 'OFFLINE'}`);
       
