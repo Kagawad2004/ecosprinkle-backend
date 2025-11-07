@@ -870,6 +870,25 @@ app.use((err, req, res, next) => {
   res.status(500).json({ message: 'Something went wrong!' });
 });
 
+// 🔧 CRITICAL: Initialize shared MQTT client BEFORE starting server
+console.log('========================================');
+console.log('🔌 Initializing shared MQTT client service...');
+const cloudBroker = process.env.CLOUD_MQTT_BROKER || 'mqtt://broker.hivemq.com:1883';
+mqttClientService.initialize(cloudBroker, {
+  clientId: `ecosprinkle_backend_${Date.now()}`,
+  clean: true,
+  reconnectPeriod: 1000,
+  connectTimeout: 30000
+});
+
+// Store MQTT client in app for use by controllers
+app.set('mqttClient', mqttClientService.getClient());
+app.set('mqttClientService', mqttClientService);
+
+console.log('✅ Shared MQTT client initialization started');
+console.log('✅ Watchdog service ready (using shared MQTT client)');
+console.log('========================================');
+
 const port = process.env.PORT || 3000;
 server.listen(port, '0.0.0.0', () => {
   console.log('========================================');
@@ -885,23 +904,6 @@ server.listen(port, '0.0.0.0', () => {
   console.log(`   GET http://localhost:${port}/api/connection-status`);
   console.log(`   GET http://localhost:${port}/api/connection-status/summary`);
   console.log('========================================');
-  
-  // 🔧 CRITICAL: Initialize shared MQTT client early to reduce race window
-  console.log('🔌 Initializing shared MQTT client service...');
-  const cloudBroker = process.env.CLOUD_MQTT_BROKER || 'mqtt://broker.hivemq.com:1883';
-  mqttClientService.initialize(cloudBroker, {
-    clientId: `ecosprinkle_backend_${Date.now()}`,
-    clean: true,
-    reconnectPeriod: 1000,
-    connectTimeout: 30000
-  });
-  
-  // Store MQTT client in app for use by controllers
-  app.set('mqttClient', mqttClientService.getClient());
-  app.set('mqttClientService', mqttClientService);
-  
-  console.log('✅ Shared MQTT client initialized');
-  console.log('✅ Watchdog service ready (using shared MQTT client)');
   
   // Check if secure cloud backend is running
   setTimeout(() => {

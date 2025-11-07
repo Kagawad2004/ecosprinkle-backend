@@ -114,9 +114,22 @@ class MqttClientService extends EventEmitter {
   publish(topic, payload, options = { qos: 1 }) {
     return new Promise((resolve, reject) => {
       if (!this.client) {
-        const error = new Error('MQTT client not initialized');
-        console.error('❌ Publish failed:', error.message);
-        reject(error);
+        // Auto-initialize if not initialized yet
+        console.warn('⚠️ MQTT client not initialized, auto-initializing...');
+        const brokerUrl = process.env.CLOUD_MQTT_BROKER || 'mqtt://broker.hivemq.com:1883';
+        this.initialize(brokerUrl);
+        
+        // Queue the message - will be sent when connected
+        console.log(`📦 Queuing message for topic: ${topic} (client initializing)`);
+        this.pendingMessages.push({
+          topic,
+          payload,
+          options,
+          retries: 0,
+          resolve,
+          reject
+        });
+        resolve(); // Resolve immediately - message will be delivered when connected
         return;
       }
 
