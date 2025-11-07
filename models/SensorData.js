@@ -136,9 +136,8 @@ const sensorDataSchema = new mongoose.Schema({
 // CRITICAL: Index by userID first for multi-user support
 sensorDataSchema.index({ userID: 1, deviceId: 1, timestamp: -1 }); // User's device history
 sensorDataSchema.index({ userID: 1, timestamp: -1 }); // All user's devices
-sensorDataSchema.index({ deviceId: 1, timestamp: -1 }); // Single device history
-sensorDataSchema.index({ deviceId: 1, timestamp: -1 });
-sensorDataSchema.index({ timestamp: -1 });
+sensorDataSchema.index({ deviceId: 1, timestamp: -1 }); // Single device history (covers both deviceId and timestamp queries)
+sensorDataSchema.index({ timestamp: -1 }); // Time-based queries across all devices
 
 // TTL index - automatically delete records older than 90 days (optional)
 // Uncomment if you want automatic cleanup of old data:

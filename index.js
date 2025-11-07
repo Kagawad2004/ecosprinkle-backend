@@ -20,6 +20,17 @@ const authMiddleware = require('./middleware/auth');
 const passport = require('./config/passport');
 
 const app = express();
+
+// Enable trust proxy FIRST (before any middleware that uses req.ip)
+// Required for express-rate-limit to correctly identify users via X-Forwarded-For header
+if (process.env.NODE_ENV === 'production' || process.env.RENDER) {
+  app.set('trust proxy', 1); // Trust first proxy (Render's load balancer)
+  console.log('✅ Trust proxy enabled for production/Render environment');
+} else {
+  // For local development, also enable trust proxy to avoid warnings
+  app.set('trust proxy', true);
+}
+
 const server = http.createServer(app);
 const io = socketIO(server, {
   cors: {
@@ -613,13 +624,6 @@ async function logSystemEvent(deviceId, eventType, eventData) {
 // Middleware
 app.use(cors());
 app.use(express.json());
-
-// Enable trust proxy for Render deployment (behind reverse proxy)
-// This is required for express-rate-limit to correctly identify users via X-Forwarded-For header
-if (process.env.NODE_ENV === 'production' || process.env.RENDER) {
-  app.set('trust proxy', 1); // Trust first proxy (Render's load balancer)
-  console.log('✅ Trust proxy enabled for production/Render environment');
-}
 
 // General rate limiter for all API routes (very lenient)
 const generalLimiter = rateLimit({
