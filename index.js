@@ -37,35 +37,12 @@ if (process.env.NODE_ENV === 'production' || process.env.RENDER) {
   app.set('trust proxy', true);
 }
 
-// Enable CORS for frontend static site domain
+// Enable CORS - Allow all origins for now (will be more specific in production)
 app.use(cors({
-  origin: function(origin, callback) {
-    // Allow requests with no origin (mobile apps, Postman, etc.)
-    if (!origin) return callback(null, true);
-    
-    const allowedOrigins = [
-      'https://ecosprinkle-site.onrender.com',
-      'http://localhost:3000',
-      'http://localhost:5173'
-    ];
-    
-    // Allow any subdomain or path from ecosprinkle-site.onrender.com
-    if (origin && origin.includes('ecosprinkle-site.onrender.com')) {
-      console.log('✅ CORS allowed origin:', origin);
-      return callback(null, true);
-    }
-    
-    if (allowedOrigins.indexOf(origin) !== -1) {
-      console.log('✅ CORS allowed origin:', origin);
-      return callback(null, true);
-    }
-    
-    console.log('🚫 CORS blocked origin:', origin);
-    callback(new Error('Not allowed by CORS'));
-  },
+  origin: '*',
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
-  credentials: true
+  credentials: false
 }));
 
 const server = http.createServer(app);
