@@ -745,7 +745,7 @@ io.on('connection', (socket) => {
 // Root route - Welcome message
 app.get('/', (req, res) => {
   res.json({
-    message: '🌱 Ecosprinkle Backend API - MUBAYAD SA BA? OR ISAHON NALANG SAMAL? HAHAHAHAHA',
+    message: '🌱 Ecosprinkle Backend API',
     status: 'running',
     version: '1.0.0',
     endpoints: {
@@ -753,9 +753,11 @@ app.get('/', (req, res) => {
       status: '/status',
       auth: '/api/auth/*',
       devices: '/api/devices/*',
-      sensors: '/api/sensor/*'
+      sensors: '/api/sensor/*',
+      feedback: '/api/feedback'
     },
-    documentation: 'https://github.com/Kagawad2004/ecosprinkle-backend'
+    documentation: 'https://github.com/Kagawad2004/ecosprinkle-backend',
+    frontend: 'https://ecosprinkle-site.onrender.com'
   });
 });
 
@@ -895,7 +897,12 @@ app.get('/api/connection-status/summary', (req, res) => {
   });
 });
 
-// Error handling middleware
+// Catch-all 404 handler should be BEFORE error handler
+app.use((req, res, next) => {
+  res.status(404).json({ success: false, message: 'Endpoint not found' });
+});
+
+// Error handling middleware (must be last)
 app.use((err, req, res, next) => {
   console.error(err.stack);
   res.status(500).json({ message: 'Something went wrong!' });
@@ -949,9 +956,3 @@ server.listen(port, '0.0.0.0', () => {
     });
   }, 2000);
 });
-
-// Catch-all 404 handler should be LAST
-app.use((req, res) => {
-  res.status(404).json({ success: false, message: 'Endpoint not found' });
-});
-
