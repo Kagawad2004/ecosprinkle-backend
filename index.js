@@ -37,6 +37,13 @@ if (process.env.NODE_ENV === 'production' || process.env.RENDER) {
   app.set('trust proxy', true);
 }
 
+// Enable CORS for all origins and common methods
+app.use(cors({
+  origin: '*',
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
 const server = http.createServer(app);
 const io = socketIO(server, {
   cors: {
