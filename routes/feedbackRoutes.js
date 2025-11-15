@@ -3,6 +3,9 @@ const Feedback = require('../models/Feedback');
 const router = express.Router();
 const { body, validationResult } = require('express-validator');
 
+// Temporary test route to verify feedbackRoutes is loaded
+router.get('/test', (req, res) => res.json({ message: 'Feedback routes working' }));
+
 // Route to handle feedback submission
 router.post(
   '/feedback',
