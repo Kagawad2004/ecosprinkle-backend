@@ -928,3 +928,8 @@ server.listen(port, '0.0.0.0', () => {
   }, 2000);
 });
 
+// Catch-all 404 handler should be LAST
+app.use((req, res) => {
+  res.status(404).json({ success: false, message: 'Endpoint not found' });
+});
+
