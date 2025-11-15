@@ -921,17 +921,3 @@ server.listen(port, '0.0.0.0', () => {
   }, 2000);
 });
 
-// Add a proxy route to forward API requests to the backend
-const { createProxyMiddleware } = require('http-proxy-middleware');
-
-// Proxy configuration
-const API_SERVICE_URL = process.env.VITE_API_URL || 'https://ecosprinkle-backend.onrender.com';
-
-// Proxy endpoint
-app.use('/api', createProxyMiddleware({
-  target: API_SERVICE_URL,
-  changeOrigin: true,
-  pathRewrite: {
-    '^/api': '', // Remove '/api' prefix when forwarding to the backend
-  },
-}));
