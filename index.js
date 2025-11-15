@@ -50,18 +50,20 @@ app.use(cors({
     ];
     
     // Allow any subdomain or path from ecosprinkle-site.onrender.com
-    if (origin.includes('ecosprinkle-site.onrender.com')) {
+    if (origin && origin.includes('ecosprinkle-site.onrender.com')) {
+      console.log('✅ CORS allowed origin:', origin);
       return callback(null, true);
     }
     
     if (allowedOrigins.indexOf(origin) !== -1) {
-      callback(null, true);
-    } else {
-      console.log('🚫 CORS blocked origin:', origin);
-      callback(null, false);
+      console.log('✅ CORS allowed origin:', origin);
+      return callback(null, true);
     }
+    
+    console.log('🚫 CORS blocked origin:', origin);
+    callback(new Error('Not allowed by CORS'));
   },
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true
 }));
