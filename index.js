@@ -39,9 +39,31 @@ if (process.env.NODE_ENV === 'production' || process.env.RENDER) {
 
 // Enable CORS for frontend static site domain
 app.use(cors({
-  origin: ['https://ecosprinkle-site.onrender.com', 'http://localhost:3000'],
+  origin: function(origin, callback) {
+    // Allow requests with no origin (mobile apps, Postman, etc.)
+    if (!origin) return callback(null, true);
+    
+    const allowedOrigins = [
+      'https://ecosprinkle-site.onrender.com',
+      'http://localhost:3000',
+      'http://localhost:5173'
+    ];
+    
+    // Allow any subdomain or path from ecosprinkle-site.onrender.com
+    if (origin.includes('ecosprinkle-site.onrender.com')) {
+      return callback(null, true);
+    }
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      console.log('🚫 CORS blocked origin:', origin);
+      callback(null, false);
+    }
+  },
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true
 }));
 
 const server = http.createServer(app);
