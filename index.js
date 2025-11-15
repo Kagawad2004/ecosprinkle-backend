@@ -37,9 +37,9 @@ if (process.env.NODE_ENV === 'production' || process.env.RENDER) {
   app.set('trust proxy', true);
 }
 
-// Enable CORS for all origins and common methods
+// Enable CORS for frontend static site domain
 app.use(cors({
-  origin: '*',
+  origin: ['https://ecosprinkle-site.onrender.com', 'http://localhost:3000'],
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
