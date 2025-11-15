@@ -656,7 +656,7 @@ async function logSystemEvent(deviceId, eventType, eventData) {
 }
 
 // Middleware
-app.use(cors());
+// CORS already configured above - do NOT apply again
 app.use(express.json());
 
 // General rate limiter for all API routes (very lenient)
