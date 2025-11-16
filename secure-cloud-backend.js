@@ -13,9 +13,12 @@ const server = http.createServer(app);
 
 // Enhanced Security Middleware
 app.use(helmet());
+// Enable CORS - Allow all origins
 app.use(cors({
-    origin: process.env.ALLOWED_ORIGINS?.split(',') || ["http://localhost:3000"],
-    credentials: true
+    origin: '*',
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: false
 }));
 
 // Rate limiting to prevent DoS attacks
