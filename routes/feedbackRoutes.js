@@ -18,8 +18,8 @@ router.post(
       .withMessage('Rating must be between 1 and 5.'),
     body('category').notEmpty().withMessage('Category is required.'),
     body('message')
-      .isLength({ min: 10 })
-      .withMessage('Message must be at least 10 characters long.'),
+      .isLength({ min: 4 })
+      .withMessage('Message must be at least 4 characters long.'),
   ],
   async (req, res) => {
     const errors = validationResult(req);
