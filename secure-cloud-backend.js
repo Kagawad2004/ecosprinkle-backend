@@ -576,6 +576,23 @@ async function cleanupOldData(deviceId) {
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
+// Root route - Welcome message
+app.get('/', (req, res) => {
+  res.json({
+    message: '🌱 Ecosprinkle Backend API',
+    status: 'running',
+    version: '1.0.0',
+    endpoints: {
+      health: '/health',
+      auth: '/api/auth/*',
+      devices: '/api/devices/*',
+      sensors: '/api/sensor/*',
+      feedback: '/api/feedback'
+    },
+    frontend: 'https://ecosprinkle-site.onrender.com'
+  });
+});
+
 // Import and use auth routes
 const authRoutes = require('./routes/auth');
 app.use('/api/auth', authRoutes);
@@ -591,6 +608,10 @@ app.use('/api/devices', deviceRoutes);
 // Import and use watering control routes
 const wateringRoutes = require('./routes/watering');
 app.use('/api/devices', wateringRoutes);
+
+// Import and use feedback routes
+const feedbackRoutes = require('./routes/feedbackRoutes');
+app.use('/api', feedbackRoutes);
 
 // Enhanced MongoDB Connection with retry logic
 async function connectToMongoDB() {
