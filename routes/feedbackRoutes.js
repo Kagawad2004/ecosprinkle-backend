@@ -55,7 +55,19 @@ router.post(
 router.get('/feedback', async (req, res) => {
   try {
     const feedbackList = await Feedback.find().sort({ date: -1 }).limit(10);
-    res.status(200).json(feedbackList);
+    const totalCount = await Feedback.countDocuments();
+    const avgRating = await Feedback.aggregate([
+      { $group: { _id: null, average: { $avg: '$rating' } } }
+    ]);
+    
+    res.status(200).json({
+      feedbacks: feedbackList,
+      stats: {
+        total: totalCount,
+        averageRating: avgRating.length > 0 ? avgRating[0].average : 0,
+        satisfaction: totalCount > 0 ? Math.round((avgRating.length > 0 ? avgRating[0].average : 0) / 5 * 100) : 0
+      }
+    });
   } catch (error) {
     console.error('Error fetching feedback:', error);
     res.status(500).json({ error: 'An error occurred while fetching feedback.' });
